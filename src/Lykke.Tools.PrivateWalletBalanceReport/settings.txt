@@ -1,0 +1,15 @@
+{
+	"Bitcoin":{
+		"NinjaUrl":"",
+		"Network":"regtest" //main or  regtest or test 
+	},
+	"AssetServiceUrl":"",
+	"ClientAccountUrl":"",
+	"AssetId":"LKK",
+	"Db":{
+		"ClientPersonalInfoConnString":""
+	},
+	"ResultFilePath":"",
+	//"ClientIdsFilePath:""		ClientIdsFilePath or ClientAccountUrl should  be specified
+	//"IncludeZeroBalance":true optional
+}
