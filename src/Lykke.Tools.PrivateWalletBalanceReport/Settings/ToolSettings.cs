@@ -18,6 +18,7 @@ namespace Lykke.Tools.PrivateWalletBalanceReport.Settings
 
         public string ResultFilePath { get; set; }
 
+        [Optional]
         public bool IncludeZeroBalances { get; set; } = false;
 
         [Optional]
