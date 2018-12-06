@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using Lykke.SettingsReader.Attributes;
+﻿using Lykke.SettingsReader.Attributes;
 
 namespace Lykke.Tools.PrivateWalletBalanceReport.Settings
 {
@@ -16,10 +13,7 @@ namespace Lykke.Tools.PrivateWalletBalanceReport.Settings
         public string ClientAccountUrl { get; set; }
 
         public string AssetId { get; set; }
-
-        [Optional]
-        public Guid? ClientId { get; set; }
-
+        
         public DbSettings Db { get; set; }
 
         public string ResultFilePath { get; set; }

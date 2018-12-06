@@ -1,7 +1,4 @@
-﻿using System;
-using Lykke.Service.Assets.Client.Models;
-using System.Collections.Generic;
-using System.Linq;
+﻿using Lykke.Service.Assets.Client.Models;
 using System.Threading.Tasks;
 
 namespace Lykke.Tools.PrivateWalletBalanceReport.Repositories

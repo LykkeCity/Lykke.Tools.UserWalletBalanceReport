@@ -3,7 +3,6 @@ using System.IO;
 using System.Threading.Tasks;
 using JetBrains.Annotations;
 using Lykke.SettingsReader;
-using Lykke.SettingsReader.Helpers;
 using Lykke.SettingsReader.ReloadingManager.Configuration;
 
 namespace Lykke.Tools.PrivateWalletBalanceReport.Settings
