@@ -161,7 +161,7 @@ namespace Lykke.Tools.PrivateWalletBalanceReport
                         }
                         catch (Exception e)
                         {
-                            logFactory.CreateLog("Global").Error(e);
+                            logFactory.CreateLog("Global").Error(e, context: new {clientId});
                         }
                     }
 
