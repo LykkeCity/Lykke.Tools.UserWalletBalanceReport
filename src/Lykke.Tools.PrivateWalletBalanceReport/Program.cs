@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using AsyncFriendlyStackTrace;
 using AzureStorage.Tables;
 using Lykke.Common.Log;
 using Lykke.Logs;
@@ -162,6 +163,13 @@ namespace Lykke.Tools.PrivateWalletBalanceReport
                         catch (Exception e)
                         {
                             logFactory.CreateLog("Global").Error(e, context: new {clientId});
+                            File.AppendAllText(settings.CurrentValue.ErrorFilePath,
+                                string.Join(csvDeliminator,
+                                    DateTime.UtcNow,
+                                    clientId,
+                                    wallet.WalletAddress,
+                                    e.ToAsyncString())
+                                + Environment.NewLine);
                         }
                     }
 
