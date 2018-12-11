@@ -112,7 +112,7 @@ namespace Lykke.Tools.PrivateWalletBalanceReport
             var balanceReader = BalanceReaderFactory.GetBalanceReader(asset, settings.CurrentValue);
             string continuationToken = null;
             
-            var csvDeliminator = ";";
+            const string csvDeliminator = ";";
 
             var counter = 0;
             do
