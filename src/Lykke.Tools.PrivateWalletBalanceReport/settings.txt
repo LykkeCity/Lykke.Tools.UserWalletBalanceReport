@@ -1,0 +1,16 @@
+{
+	"Bitcoin":{
+		"NinjaUrl":"", //
+		"Network":"regtest" //main or  regtest or test 
+	},
+	"AssetServiceUrl":"", // lykke asset service url
+	"ClientAccountUrl":"", //lykke client accout service url
+	"AssetId":"", // colored coin should be specified as mandatory parameter in format of Lykke internal asset ID.
+	"Db":{
+		"ClientPersonalInfoConnString":""
+	},
+	"ResultFilePath":"", // exported balances in csv format
+	"ErrorFilePath":"", // file with errors during export
+	"ClientIdsFilePath:""	//a file with list of users ID, for which balances should be checked. Each user ID should be placed at new line. If this parameter is omitted, then balances of all private wallets should be reported.	ClientIdsFilePath or ClientAccountUrl should  be specified
+	"IncludeZeroBalances":true // include zero balances in report. optional - default value is false
+}
