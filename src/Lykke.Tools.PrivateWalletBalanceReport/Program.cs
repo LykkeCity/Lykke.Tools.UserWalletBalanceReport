@@ -95,7 +95,7 @@ namespace Lykke.Tools.PrivateWalletBalanceReport
                 .WaitAndRetryAsync(10, retryAttempt => TimeSpan.FromSeconds(retryAttempt), onRetry:
                     (ex, delay, context, tsk) =>
                     {
-                        logFactory.CreateLog("Retry").Error(ex);
+                        Console.WriteLine($"Retrying exception {ex.ToAsyncString()}");
                     });
 
 
@@ -103,9 +103,7 @@ namespace Lykke.Tools.PrivateWalletBalanceReport
 
             if (asset == null)
             {
-                logFactory.CreateLog("Global")
-                    .Error(message: "Asset not found", 
-                        context: settings.CurrentValue.AssetId);
+                Console.WriteLine($"Asset not found {settings.CurrentValue.AssetId}");
 
                 return;
             }
@@ -162,7 +160,8 @@ namespace Lykke.Tools.PrivateWalletBalanceReport
                         }
                         catch (Exception e)
                         {
-                            logFactory.CreateLog("Global").Error(e, context: new {clientId});
+                            Console.WriteLine($"Exception during processing balance for client {clientId}: {e.ToAsyncString()}" );
+            
                             File.AppendAllText(settings.CurrentValue.ErrorFilePath,
                                 string.Join(csvDeliminator,
                                     DateTime.UtcNow,
