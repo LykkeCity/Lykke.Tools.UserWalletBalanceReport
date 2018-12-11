@@ -12,5 +12,5 @@
 	"ResultFilePath":"",
 	"ErrorFilePath":"",
 	//"ClientIdsFilePath:""		ClientIdsFilePath or ClientAccountUrl should  be specified
-	//"IncludeZeroBalance":true optional
+	//"IncludeZeroBalances":true optional
 }
