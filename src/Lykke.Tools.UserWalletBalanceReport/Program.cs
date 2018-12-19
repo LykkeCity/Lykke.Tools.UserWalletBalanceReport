@@ -10,15 +10,17 @@ using Lykke.Common.Log;
 using Lykke.Logs;
 using Lykke.Logs.Loggers.LykkeConsole;
 using Lykke.Service.Assets.Client;
+using Lykke.Service.Assets.Client.Models;
+using Lykke.Service.BlockchainWallets.Client;
 using Lykke.Service.ClientAccount.Client;
 using Lykke.SettingsReader;
-using Lykke.Tools.PrivateWalletBalanceReport.Repositories;
-using Lykke.Tools.PrivateWalletBalanceReport.Services;
-using Lykke.Tools.PrivateWalletBalanceReport.Settings;
+using Lykke.Tools.UserWalletBalanceReport.Repositories;
+using Lykke.Tools.UserWalletBalanceReport.Services;
+using Lykke.Tools.UserWalletBalanceReport.Settings;
 using Microsoft.Extensions.CommandLineUtils;
 using Polly;
 
-namespace Lykke.Tools.PrivateWalletBalanceReport
+namespace Lykke.Tools.UserWalletBalanceReport
 {
     internal static class Program
     {
@@ -81,22 +83,17 @@ namespace Lykke.Tools.PrivateWalletBalanceReport
 
             var assetServce = new AssetsService(new Uri(settings.CurrentValue.AssetServiceUrl));
 
-            var privateWalletsRepo = new PrivateWalletsRepository(
-                AzureTableStorage<PrivateWalletEntity>.Create(
-                    settings.ConnectionString(x => x.Db.ClientPersonalInfoConnString),
-                    "PrivateWallets", logFactory));
-
-            var walletCredentialsRepo = new WalletCredentialsRepository(
-                AzureTableStorage<WalletCredentialsEntity>.Create(
-                    settings.ConnectionString(x => x.Db.ClientPersonalInfoConnString),
-                    "WalletCredentials", logFactory));
-
+            
             var retryPolicy = Policy.Handle<RetryNeededException>()
                 .WaitAndRetryAsync(10, retryAttempt => TimeSpan.FromSeconds(retryAttempt), onRetry:
                     (ex, delay, context, tsk) =>
                     {
                         Console.WriteLine($"Retrying exception {ex.ToAsyncString()}");
                     });
+
+            var clientAccountService = new Lazy<ClientAccountClient>(()=> 
+                new ClientAccountClient(settings.CurrentValue.ClientAccountUrl 
+                                        ?? throw new ArgumentNullException(settings.CurrentValue.ClientAccountUrl)));
 
 
             var asset = await assetServce.AssetGetAsync(settings.CurrentValue.AssetId);
@@ -122,11 +119,9 @@ namespace Lykke.Tools.PrivateWalletBalanceReport
 
                 if (string.IsNullOrEmpty(settings.CurrentValue.ClientIdsFilePath))
                 {
-                    var clientAccountService = new ClientAccountClient(settings.CurrentValue.ClientAccountUrl 
-                                                                       ?? throw new ArgumentNullException(settings.CurrentValue.ClientAccountUrl));
-
+               
                     Console.WriteLine("Retrieving client ids batch");
-                    var response = await clientAccountService.GetIdsAsync(continuationToken);
+                    var response = await clientAccountService.Value.GetIdsAsync(continuationToken);
 
                     continuationToken = response.ContinuationToken;
                     clientIds = response.Ids;
@@ -139,14 +134,34 @@ namespace Lykke.Tools.PrivateWalletBalanceReport
 
                 foreach (var clientId in clientIds)
                 {
-                    var clientPrivateWallets = await privateWalletsRepo.GetAllPrivateWallets(clientId, await walletCredentialsRepo.GetAsync(clientId));
+                    IEnumerable<string> addresses;
 
-                    foreach (var wallet in clientPrivateWallets.Where(balanceReader.IsRelated))
+                    switch (settings.CurrentValue.WalletType)
+                    {
+                        case ToolSettings.WalletTypes.Deposit:
+                            addresses = await GetPrivateWalletAddresses(clientId, 
+                                logFactory,
+                                settings,
+                                balanceReader);
+
+                            break;
+                        case ToolSettings.WalletTypes.Private:
+                            addresses = await GetDepositWallets(clientId, 
+                                asset, logFactory, 
+                                settings,
+                                balanceReader);
+
+                            break;
+                        default:
+                            throw new ArgumentException("Unknown switch", nameof(ToolSettings.WalletType));
+                    }
+
+                    foreach (var address in addresses)
                     {
                         try
                         {
                             var blockchainBalance = await retryPolicy.ExecuteAsync(
-                                () => balanceReader.ReadBalance(asset, wallet));
+                                () => balanceReader.ReadBalance(asset, address));
                             
                             if (blockchainBalance.amount != 0 || settings.CurrentValue.IncludeZeroBalances)
                             {
@@ -166,7 +181,7 @@ namespace Lykke.Tools.PrivateWalletBalanceReport
                                 string.Join(csvDeliminator,
                                     DateTime.UtcNow,
                                     clientId,
-                                    wallet.WalletAddress,
+                                    address,
                                     e.ToAsyncString())
                                 + Environment.NewLine);
                         }
@@ -179,5 +194,89 @@ namespace Lykke.Tools.PrivateWalletBalanceReport
 
             Console.WriteLine("All done");
         }
+
+        private static async Task<IEnumerable<string>> GetPrivateWalletAddresses(string clientId, 
+            ILogFactory logFactory,
+            IReloadingManager<ToolSettings> settings,
+            IBalanceReader balanceReader)
+        {
+            if (string.IsNullOrEmpty(settings.CurrentValue.Db.ClientPersonalInfoConnString))
+            {
+                throw new ArgumentNullException(nameof(ToolSettings.Db.ClientPersonalInfoConnString));
+            }
+
+            var privateWalletsRepo = new PrivateWalletsRepository(
+                AzureTableStorage<PrivateWalletEntity>.Create(
+                    settings.ConnectionString(x => x.Db.ClientPersonalInfoConnString),
+                    "PrivateWallets", logFactory));
+
+            var walletCredentialsRepo = new WalletCredentialsRepository(
+                AzureTableStorage<WalletCredentialsEntity>.Create(
+                    settings.ConnectionString(x => x.Db.ClientPersonalInfoConnString),
+                    "WalletCredentials", logFactory));
+
+            return  (await privateWalletsRepo.GetAllPrivateWallets(clientId,
+                await walletCredentialsRepo.GetAsync(clientId)))
+                .SelectMany(balanceReader.GetAddresses);
+        }
+
+        private static async Task<IEnumerable<string>> GetDepositWallets(string clientId, 
+            Asset asset, 
+            ILogFactory logFactory,
+            IReloadingManager<ToolSettings> settings,
+            IBalanceReader balanceReader)
+        {
+            if (string.IsNullOrEmpty(settings.CurrentValue.Db.ClientPersonalInfoConnString))
+            {
+                throw new ArgumentNullException(nameof(ToolSettings.Db.ClientPersonalInfoConnString));
+            }
+
+            if (string.IsNullOrEmpty(settings.CurrentValue.BlockchainWalletsUrl))
+            {
+                throw new ArgumentNullException(nameof(ToolSettings.Db.ClientPersonalInfoConnString));
+            }
+
+            var bcnCredentialsRepo = new BcnClientCredentialsRepository(
+                AzureTableStorage<BcnCredentialsRecordEntity>.Create(
+                    settings.ConnectionString(x => x.Db.ClientPersonalInfoConnString),
+                    "BcnClientCredentials", logFactory));
+
+            var walletCredentialsRepo = new WalletCredentialsRepository(
+                AzureTableStorage<WalletCredentialsEntity>.Create(
+                    settings.ConnectionString(x => x.Db.ClientPersonalInfoConnString),
+                    "WalletCredentials", logFactory));
+
+            var blockchainWalletsClient =
+                new BlockchainWalletsClient(settings.CurrentValue.BlockchainWalletsUrl, logFactory);
+
+            var result = new List<string>();
+
+            var bcnCredWallet = await bcnCredentialsRepo.GetAsync(clientId, asset.Id);
+
+            if (bcnCredWallet != null)
+            {
+                result.AddRange(balanceReader.GetAddresses(bcnCredWallet));
+            }
+
+            var walletCredentialsWallet = await walletCredentialsRepo.GetAsync(clientId);
+
+            if (walletCredentialsWallet != null)
+            {
+                result.AddRange(balanceReader.GetAddresses(walletCredentialsWallet));
+            }
+
+            var bwWallet = await blockchainWalletsClient.GetAddressAsync(asset.BlockchainIntegrationLayerId,
+                asset.BlockchainIntegrationLayerAssetId, Guid.Parse(clientId));
+
+            if (bwWallet != null)
+            {
+                result.AddRange(balanceReader.GetAddresses(bwWallet));
+            }
+
+            return result.Distinct();
+        }
     }
+
+
+    
 }

@@ -1,16 +1,21 @@
 ﻿using Lykke.SettingsReader.Attributes;
 
-namespace Lykke.Tools.PrivateWalletBalanceReport.Settings
+namespace Lykke.Tools.UserWalletBalanceReport.Settings
 {
     public class ToolSettings
     {
         [Optional]
         public BitcoinSettings Bitcoin { get; set; }
 
+        public WalletTypes WalletType { get; set; }
+
         public string AssetServiceUrl { get; set; }
 
         [Optional]
         public string ClientAccountUrl { get; set; }
+
+        [Optional]
+        public string BlockchainWalletsUrl { get; set; }
 
         public string AssetId { get; set; }
         
@@ -38,6 +43,12 @@ namespace Lykke.Tools.PrivateWalletBalanceReport.Settings
         public class DbSettings
         {
             public string ClientPersonalInfoConnString { get; set; }
+        }
+
+        public enum WalletTypes
+        {
+            Private,
+            Deposit
         }
     }
 }

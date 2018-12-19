@@ -5,7 +5,7 @@ using JetBrains.Annotations;
 using Lykke.SettingsReader;
 using Lykke.SettingsReader.ReloadingManager.Configuration;
 
-namespace Lykke.Tools.PrivateWalletBalanceReport.Settings
+namespace Lykke.Tools.UserWalletBalanceReport.Settings
 {
     [PublicAPI]
     public class FileSettingsReader<TSettings> : ReloadingManagerWithConfigurationBase<TSettings>

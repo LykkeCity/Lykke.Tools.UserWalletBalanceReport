@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Lykke.Tools.PrivateWalletBalanceReport.Services
+namespace Lykke.Tools.UserWalletBalanceReport.Services
 {
     public class RetryNeededException:Exception
     {

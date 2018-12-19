@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using AzureStorage;
 using Microsoft.WindowsAzure.Storage.Table;
 
-namespace Lykke.Tools.PrivateWalletBalanceReport.Repositories
+namespace Lykke.Tools.UserWalletBalanceReport.Repositories
 {
     public class PrivateWalletEntity : TableEntity, IPrivateWallet
     {
