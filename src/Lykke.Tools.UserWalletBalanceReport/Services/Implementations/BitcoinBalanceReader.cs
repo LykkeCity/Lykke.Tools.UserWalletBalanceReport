@@ -83,17 +83,53 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations
 
         public IEnumerable<string> GetAddresses(IWalletCredentials wallet)
         {
-            yield return wallet.Address;
+            if (IsBtcAddress(wallet.Address))
+            {
+                yield return wallet.Address;
+            }
+
+            if (IsBtcAddress(wallet.MultiSig))
+            {
+                yield return wallet.MultiSig;
+            }
+
+            if (IsBtcAddress(wallet.ColoredMultiSig))
+            {
+                yield return wallet.ColoredMultiSig;
+            }
+            
+            if (IsBtcAddress(wallet.BtcConvertionWalletAddress))
+            {
+                yield return wallet.BtcConvertionWalletAddress;
+            }
         }
 
         public IEnumerable<string> GetAddresses(IBcnCredentialsRecord wallet)
         {
-            yield return wallet.Address;
+            if (IsBtcAddress(wallet.Address))
+            {
+                yield return wallet.Address;
+            }
         }
 
         public IEnumerable<string> GetAddresses(AddressResponse wallet)
         {
             yield return wallet.Address;
+        }
+
+        private bool IsBtcAddress(string address)
+        {
+            try
+            {
+                BitcoinAddress.Create(address,
+                    _client.Network);
+
+                return true;
+            }
+            catch (Exception e)
+            {
+                return false;
+            }
         }
     }
 }
