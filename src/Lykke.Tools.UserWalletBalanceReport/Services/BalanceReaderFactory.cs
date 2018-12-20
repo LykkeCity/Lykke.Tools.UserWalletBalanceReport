@@ -13,7 +13,7 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services
             {
                 case Blockchain.Bitcoin:
                 {
-                    return ColoredCoinsBtcBalanceReader.Create(toolSettings);
+                    return BitcoinBalanceReader.Create(toolSettings);
                 }
                 default:
                 {

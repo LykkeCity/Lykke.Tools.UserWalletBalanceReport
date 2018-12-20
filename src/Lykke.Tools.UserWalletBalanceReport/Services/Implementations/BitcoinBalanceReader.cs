@@ -14,7 +14,7 @@ using QBitNinja.Client.Models;
 
 namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations
 {
-    public class ColoredCoinsBtcBalanceReader: IBalanceReader
+    public class BitcoinBalanceReader: IBalanceReader
     {
         private readonly QBitNinjaClient _client;
         
@@ -36,10 +36,10 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations
                 Colored = true
             };
 
-            return new ColoredCoinsBtcBalanceReader(client);
+            return new BitcoinBalanceReader(client);
         }
 
-        private ColoredCoinsBtcBalanceReader(QBitNinjaClient client)
+        private BitcoinBalanceReader(QBitNinjaClient client)
         {
             _client = client;
         }
@@ -74,11 +74,6 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations
 
         public IEnumerable<string> GetAddresses(IWalletCredentials wallet)
         {
-            if (IsBtcAddress(wallet.Address))
-            {
-                yield return wallet.Address;
-            }
-
             if (IsBtcAddress(wallet.MultiSig))
             {
                 yield return wallet.MultiSig;
@@ -88,18 +83,13 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations
             {
                 yield return wallet.ColoredMultiSig;
             }
-            
-            if (IsBtcAddress(wallet.BtcConvertionWalletAddress))
-            {
-                yield return wallet.BtcConvertionWalletAddress;
-            }
         }
 
         public IEnumerable<string> GetAddresses(IBcnCredentialsRecord wallet)
         {
             if (IsBtcAddress(wallet.Address))
             {
-                yield return wallet.Address;
+                yield return wallet.AssetAddress;
             }
         }
 
@@ -110,10 +100,29 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations
 
         private bool IsBtcAddress(string address)
         {
+            return IsUncoloredBtcAddress(address) || IsColoredBtcAddress(address);
+        }
+
+        private bool IsUncoloredBtcAddress(string address)
+        {
             try
             {
                 BitcoinAddress.Create(address,
                     _client.Network);
+
+                return true;
+            }
+            catch (Exception e)
+            {
+                return false;
+            }
+        }
+
+        private bool IsColoredBtcAddress(string address)
+        {
+            try
+            {
+                new BitcoinColoredAddress(address, _client.Network);
 
                 return true;
             }
