@@ -138,14 +138,14 @@ namespace Lykke.Tools.UserWalletBalanceReport
 
                     switch (settings.CurrentValue.WalletType)
                     {
-                        case ToolSettings.WalletTypes.Deposit:
+                        case ToolSettings.WalletTypes.Private:
                             addresses = await GetPrivateWalletAddresses(clientId, 
                                 logFactory,
                                 settings,
                                 balanceReader);
 
                             break;
-                        case ToolSettings.WalletTypes.Private:
+                        case ToolSettings.WalletTypes.Deposit:
                             addresses = await GetDepositWallets(clientId, 
                                 asset, logFactory, 
                                 settings,
@@ -265,18 +265,23 @@ namespace Lykke.Tools.UserWalletBalanceReport
                 result.AddRange(balanceReader.GetAddresses(walletCredentialsWallet));
             }
 
-            var bwWallet = await blockchainWalletsClient.GetAddressAsync(asset.BlockchainIntegrationLayerId,
-                asset.BlockchainIntegrationLayerAssetId, Guid.Parse(clientId));
-
-            if (bwWallet != null)
+            try
             {
-                result.AddRange(balanceReader.GetAddresses(bwWallet));
+                var bwWallet = await blockchainWalletsClient.GetAddressAsync(asset.BlockchainIntegrationLayerId,
+                    asset.BlockchainIntegrationLayerAssetId, Guid.Parse(clientId));
+
+                if (bwWallet != null)
+                {
+                    result.AddRange(balanceReader.GetAddresses(bwWallet));
+                }
             }
+            catch (ResultValidationException e)
+            {
+                
+            }
+
 
             return result.Distinct();
         }
     }
-
-
-    
 }

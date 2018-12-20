@@ -14,7 +14,7 @@ using QBitNinja.Client.Models;
 
 namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations
 {
-    public class BitcoinBalanceReader: IBalanceReader
+    public class ColoredCoinsBtcBalanceReader: IBalanceReader
     {
         private readonly QBitNinjaClient _client;
         
@@ -36,44 +36,35 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations
                 Colored = true
             };
 
-            return new BitcoinBalanceReader(client);
+            return new ColoredCoinsBtcBalanceReader(client);
         }
 
-        private BitcoinBalanceReader(QBitNinjaClient client)
+        private ColoredCoinsBtcBalanceReader(QBitNinjaClient client)
         {
             _client = client;
         }
 
         public async Task<(string address, decimal amount)> ReadBalance(Asset asset, string address)
         {
+            var btcAssetId = new BitcoinAssetId(asset.BlockChainAssetId, _client.Network);
+
+            var btcAddress = BitcoinAddress.Create(address,
+                _client.Network);
+
+            BalanceSummary sum;
+
             try
             {
-                var btcAssetId = new BitcoinAssetId(asset.BlockChainAssetId, _client.Network);
-
-                var btcAddress = BitcoinAddress.Create(address,
-                    _client.Network);
-
-                BalanceSummary sum;
-
-                try
-                {
-                    sum = await _client.GetBalanceSummary(btcAddress);
-                }
-                catch (Exception e)
-                {
-                    throw new RetryNeededException(e);
-                }
-
-                var amount = sum.Spendable.Assets.SingleOrDefault(p => p.Asset == btcAssetId)?.Quantity ?? 0;
-
-                return (address, amount * (decimal)asset.Multiplier());
+                sum = await _client.GetBalanceSummary(btcAddress);
             }
             catch (Exception e)
             {
-                Console.WriteLine(e);
-                throw;
+                throw new RetryNeededException(e);
             }
 
+            var amount = sum.Spendable.Assets.SingleOrDefault(p => p.Asset == btcAssetId)?.Quantity ?? 0;
+
+            return (address, amount * (decimal)asset.Multiplier());
         }
 
         public IEnumerable<string> GetAddresses(IPrivateWallet wallet)
