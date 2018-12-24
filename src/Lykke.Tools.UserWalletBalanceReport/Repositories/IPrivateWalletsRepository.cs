@@ -2,7 +2,7 @@
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace Lykke.Tools.PrivateWalletBalanceReport.Repositories
+namespace Lykke.Tools.UserWalletBalanceReport.Repositories
 {
     public interface IPrivateWallet
     {

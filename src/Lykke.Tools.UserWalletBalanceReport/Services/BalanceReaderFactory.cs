@@ -1,9 +1,9 @@
 ﻿using System;
 using Lykke.Service.Assets.Client.Models;
-using Lykke.Tools.PrivateWalletBalanceReport.Services.Implementations;
-using Lykke.Tools.PrivateWalletBalanceReport.Settings;
+using Lykke.Tools.UserWalletBalanceReport.Services.Implementations;
+using Lykke.Tools.UserWalletBalanceReport.Settings;
 
-namespace Lykke.Tools.PrivateWalletBalanceReport.Services
+namespace Lykke.Tools.UserWalletBalanceReport.Services
 {
     public static class BalanceReaderFactory
     {

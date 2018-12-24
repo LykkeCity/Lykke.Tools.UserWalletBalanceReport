@@ -1,7 +1,7 @@
-﻿using Lykke.Service.Assets.Client.Models;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
+using Lykke.Service.Assets.Client.Models;
 
-namespace Lykke.Tools.PrivateWalletBalanceReport.Repositories
+namespace Lykke.Tools.UserWalletBalanceReport.Repositories
 {
     public interface IWalletCredentials
     {
