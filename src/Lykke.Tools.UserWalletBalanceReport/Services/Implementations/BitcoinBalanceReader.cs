@@ -46,10 +46,10 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations
 
         public async Task<(string address, decimal amount)> ReadBalance(Asset asset, string address)
         {
+
             var btcAssetId = new BitcoinAssetId(asset.BlockChainAssetId, _client.Network);
 
-            var btcAddress = BitcoinAddress.Create(address,
-                _client.Network);
+            var btcAddress = GetAddress(address);
 
             BalanceSummary sum;
 
@@ -101,6 +101,22 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations
         private bool IsBtcAddress(string address)
         {
             return IsUncoloredBtcAddress(address) || IsColoredBtcAddress(address);
+        }
+
+        private BitcoinAddress GetAddress(string address)
+        {
+
+            if (IsUncoloredBtcAddress(address))
+            {
+                return BitcoinAddress.Create(address, _client.Network);
+            }
+
+            if (IsColoredBtcAddress(address))
+            {
+                return new BitcoinColoredAddress(address, _client.Network).Address;
+            }
+
+            throw new ArgumentException($"Invalid address format {address}", nameof(address));
         }
 
         private bool IsUncoloredBtcAddress(string address)
