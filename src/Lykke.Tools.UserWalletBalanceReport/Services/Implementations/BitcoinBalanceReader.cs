@@ -98,6 +98,11 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations
             yield return wallet.Address;
         }
 
+        public IEnumerable<string> SelectUniqueAddresses(IEnumerable<string> source)
+        {
+            return source.Select(GetAddress).Distinct().Select(p => p.ToString());
+        }
+
         private bool IsBtcAddress(string address)
         {
             return IsUncoloredBtcAddress(address) || IsColoredBtcAddress(address);

@@ -13,5 +13,6 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services
         IEnumerable<string> GetAddresses(IWalletCredentials wallet);
         IEnumerable<string> GetAddresses(IBcnCredentialsRecord wallet);
         IEnumerable<string> GetAddresses(AddressResponse wallet);
+        IEnumerable<string> SelectUniqueAddresses(IEnumerable<string> source);
     }
 }
