@@ -156,7 +156,7 @@ namespace Lykke.Tools.UserWalletBalanceReport
                             throw new ArgumentException("Unknown switch", nameof(ToolSettings.WalletType));
                     }
 
-                    foreach (var address in addresses)
+                    foreach (var address in balanceReader.SelectUniqueAddresses(addresses))
                     {
                         try
                         {
