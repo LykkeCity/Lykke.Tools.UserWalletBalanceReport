@@ -17,6 +17,7 @@ namespace Lykke.Tools.UserWalletBalanceReport.Settings
         [Optional]
         public string BlockchainWalletsUrl { get; set; }
 
+        [Optional]
         public string AssetId { get; set; }
         
         public DbSettings Db { get; set; }

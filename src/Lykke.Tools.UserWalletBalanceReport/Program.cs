@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -12,6 +13,7 @@ using Lykke.Logs.Loggers.LykkeConsole;
 using Lykke.Service.Assets.Client;
 using Lykke.Service.Assets.Client.Models;
 using Lykke.Service.BlockchainWallets.Client;
+using Lykke.Service.BlockchainWallets.Contract.Models;
 using Lykke.Service.ClientAccount.Client;
 using Lykke.SettingsReader;
 using Lykke.Tools.UserWalletBalanceReport.Repositories;
@@ -95,26 +97,39 @@ namespace Lykke.Tools.UserWalletBalanceReport
                 new ClientAccountClient(settings.CurrentValue.ClientAccountUrl 
                                         ?? throw new ArgumentNullException(settings.CurrentValue.ClientAccountUrl)));
 
-
-            var asset = await assetServce.AssetGetAsync(settings.CurrentValue.AssetId);
-
-            if (asset == null)
+            IEnumerable<Asset> assets;
+            if (!string.IsNullOrEmpty(settings.CurrentValue.AssetId))
             {
-                Console.WriteLine($"Asset not found {settings.CurrentValue.AssetId}");
 
-                return;
+                var asset = await assetServce.AssetGetAsync(settings.CurrentValue.AssetId);
+
+                if (asset == null)
+                {
+                    Console.WriteLine($"Asset not found {settings.CurrentValue.AssetId}");
+
+                    return;
+                }
+
+                assets = new []
+                {
+                    asset
+                };
+            }
+            else
+            {
+                assets = await assetServce.AssetGetAllAsync();
             }
 
-
-            var balanceReader = BalanceReaderFactory.GetBalanceReader(asset, settings.CurrentValue);
-            string continuationToken = null;
+            var balanceReaders = BalanceReaderFactory.GetBalanceReaders(assets, settings.CurrentValue);
             
             const string csvDeliminator = ";";
 
             var counter = 0;
+            string continuationToken = null;
+            var relatedAssetsDictionary = new ConcurrentDictionary<Type, IEnumerable<Asset>>();
+
             do
             {
-
                 IEnumerable<string> clientIds;
 
                 if (string.IsNullOrEmpty(settings.CurrentValue.ClientIdsFilePath))
@@ -131,74 +146,89 @@ namespace Lykke.Tools.UserWalletBalanceReport
                     clientIds = await File.ReadAllLinesAsync(settings.CurrentValue.ClientIdsFilePath);
                 }
 
+                // If AssetId is omitted, IncludeZeroBalances should be false.
+                var includeZeroBalances = settings.CurrentValue.IncludeZeroBalances
+                                          && !string.IsNullOrEmpty(settings.CurrentValue.AssetId); 
 
                 foreach (var clientId in clientIds)
                 {
-                    IEnumerable<string> addresses;
+                    IEnumerable<(IBalanceReader balanceReader, string address)> addresses;
 
                     switch (settings.CurrentValue.WalletType)
                     {
                         case ToolSettings.WalletTypes.Private:
-                            addresses = await GetPrivateWalletAddresses(clientId, 
+                            addresses = await GetPrivateWalletAddresses(clientId,
                                 logFactory,
                                 settings,
-                                balanceReader);
+                                balanceReaders);
 
                             break;
                         case ToolSettings.WalletTypes.Deposit:
-                            addresses = await GetDepositWallets(clientId, 
-                                asset, logFactory, 
+                            addresses = await GetDepositWallets(clientId,
+                                logFactory,
                                 settings,
-                                balanceReader);
+                                balanceReaders);
 
                             break;
                         default:
                             throw new ArgumentException("Unknown switch", nameof(ToolSettings.WalletType));
                     }
 
-                    foreach (var address in balanceReader.SelectUniqueAddresses(addresses))
+                    foreach (var balanceReaderAddresses in addresses.GroupBy(p=>p.balanceReader.GetType()))
                     {
-                        try
+                        var balanceReader = balanceReaderAddresses.First().balanceReader;
+
+                        //cache enumeration
+                        var relatedAssets = relatedAssetsDictionary.GetOrAdd(balanceReader.GetType(),
+                            (type) => balanceReader.SelectRelatedAssets(assets).ToList());
+
+                        foreach (var address in balanceReader.SelectUniqueAddresses(balanceReaderAddresses.Select(p=>p.address)))
                         {
-                            var blockchainBalance = await retryPolicy.ExecuteAsync(
-                                () => balanceReader.ReadBalance(asset, address));
-                            
-                            if (blockchainBalance.amount != 0 || settings.CurrentValue.IncludeZeroBalances)
+                            try
                             {
-                                File.AppendAllText(settings.CurrentValue.ResultFilePath,
+                                var blockchainBalances = await retryPolicy.ExecuteAsync(
+                                    () => balanceReader.ReadBalance(relatedAssets, address));
+
+                                foreach (var blockchainBalance in blockchainBalances
+                                    .Where(p => p.amount != 0 || includeZeroBalances))
+                                {
+                                    File.AppendAllText(settings.CurrentValue.ResultFilePath,
+                                        string.Join(csvDeliminator,
+                                            clientId,
+                                            blockchainBalance.address,
+                                            blockchainBalance.amount.ToString("F", CultureInfo.InvariantCulture),
+                                            blockchainBalance.assetId)
+                                        + Environment.NewLine);
+                                }
+                            }
+                            catch (Exception e)
+                            {
+                                Console.WriteLine($"Exception during processing balance for client {clientId}: {e.ToAsyncString()}");
+
+                                File.AppendAllText(settings.CurrentValue.ErrorFilePath,
                                     string.Join(csvDeliminator,
+                                        DateTime.UtcNow,
                                         clientId,
-                                        blockchainBalance.address,
-                                        blockchainBalance.amount.ToString("F", CultureInfo.InvariantCulture))
+                                        address,
+                                        e.ToAsyncString())
                                     + Environment.NewLine);
                             }
                         }
-                        catch (Exception e)
-                        {
-                            Console.WriteLine($"Exception during processing balance for client {clientId}: {e.ToAsyncString()}" );
-            
-                            File.AppendAllText(settings.CurrentValue.ErrorFilePath,
-                                string.Join(csvDeliminator,
-                                    DateTime.UtcNow,
-                                    clientId,
-                                    address,
-                                    e.ToAsyncString())
-                                + Environment.NewLine);
-                        }
                     }
 
+
                     counter++;
-                    Console.WriteLine($"{clientId} done -- {counter}");
+                    Console.WriteLine($"[{DateTime.UtcNow}] {clientId} done -- {counter}");
                 }
             } while (continuationToken != null);
 
             Console.WriteLine("All done");
         }
 
-        private static async Task<IEnumerable<string>> GetPrivateWalletAddresses(string clientId, 
+        private static async Task<IEnumerable<(IBalanceReader balanceReader, string address)>> GetPrivateWalletAddresses(string clientId, 
             ILogFactory logFactory,
             IReloadingManager<ToolSettings> settings,
-            IBalanceReader balanceReader)
+            IEnumerable<IBalanceReader> balanceReaders)
         {
             if (string.IsNullOrEmpty(settings.CurrentValue.Db.ClientPersonalInfoConnString))
             {
@@ -215,16 +245,23 @@ namespace Lykke.Tools.UserWalletBalanceReport
                     settings.ConnectionString(x => x.Db.ClientPersonalInfoConnString),
                     "WalletCredentials", logFactory));
 
-            return  (await privateWalletsRepo.GetAllPrivateWallets(clientId,
-                await walletCredentialsRepo.GetAsync(clientId)))
-                .SelectMany(balanceReader.GetAddresses);
+            var wallets = (await privateWalletsRepo.GetAllPrivateWallets(clientId,
+                await walletCredentialsRepo.GetAsync(clientId))).ToList();
+
+            var result = new List<(IBalanceReader balanceReader, string address)>();
+            foreach (var balanceReader in balanceReaders)
+            {
+                var addr = wallets.SelectMany(balanceReader.GetAddresses);
+                result.AddRange(addr.Select(p => (balanceReader, p)));
+            }
+
+            return result;
         }
 
-        private static async Task<IEnumerable<string>> GetDepositWallets(string clientId, 
-            Asset asset, 
+        private static async Task<IEnumerable<(IBalanceReader balanceReader, string address)>> GetDepositWallets(string clientId,
             ILogFactory logFactory,
             IReloadingManager<ToolSettings> settings,
-            IBalanceReader balanceReader)
+            IEnumerable<IBalanceReader> balanceReaders)
         {
             if (string.IsNullOrEmpty(settings.CurrentValue.Db.ClientPersonalInfoConnString))
             {
@@ -249,39 +286,53 @@ namespace Lykke.Tools.UserWalletBalanceReport
             var blockchainWalletsClient =
                 new BlockchainWalletsClient(settings.CurrentValue.BlockchainWalletsUrl, logFactory);
 
-            var result = new List<string>();
+            var result = new List<(IBalanceReader balanceReader, string address)>();
 
-            var bcnCredWallet = await bcnCredentialsRepo.GetAsync(clientId, asset.Id);
+            var bcnCredWallets = (await bcnCredentialsRepo.GetAsync(clientId)).ToList();
 
-            if (bcnCredWallet != null)
+            foreach (var balanceReader in balanceReaders)
             {
-                result.AddRange(balanceReader.GetAddresses(bcnCredWallet));
+                var addr = bcnCredWallets.SelectMany(balanceReader.GetAddresses);
+                result.AddRange(addr.Select(p=> (balanceReader, p)));
             }
 
             var walletCredentialsWallet = await walletCredentialsRepo.GetAsync(clientId);
 
             if (walletCredentialsWallet != null)
             {
-                result.AddRange(balanceReader.GetAddresses(walletCredentialsWallet));
+                foreach (var balanceReader in balanceReaders)
+                {
+                    var addr = balanceReader.GetAddresses(walletCredentialsWallet);
+                    result.AddRange(addr.Select(p => (balanceReader, p)));
+                }
             }
+
 
             try
             {
-                var bwWallet = await blockchainWalletsClient.GetAddressAsync(asset.BlockchainIntegrationLayerId,
-                    asset.BlockchainIntegrationLayerAssetId, Guid.Parse(clientId));
-
-                if (bwWallet != null)
+                string continuationToken = null;
+                do
                 {
-                    result.AddRange(balanceReader.GetAddresses(bwWallet));
-                }
+                    var resp = await 
+                        blockchainWalletsClient.TryGetClientWalletsAsync(Guid.Parse(clientId), 10, continuationToken);
+
+                    foreach (var balanceReader in balanceReaders)
+                    {
+                        var addr = (resp?.Wallets ?? Enumerable.Empty<BlockchainWalletResponse>())
+                            .SelectMany(balanceReader.GetAddresses);
+                        result.AddRange(addr.Select(p => (balanceReader, p)));
+                    }
+
+                    continuationToken = resp?.ContinuationToken;
+                } while (continuationToken != null);
             }
-            catch (ResultValidationException e)
+            catch (ResultValidationException)
             {
                 
             }
 
 
-            return result.Distinct();
+            return result;
         }
     }
 }
