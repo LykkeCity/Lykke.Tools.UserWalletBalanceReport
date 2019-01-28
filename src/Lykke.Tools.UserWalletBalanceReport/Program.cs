@@ -120,7 +120,7 @@ namespace Lykke.Tools.UserWalletBalanceReport
                 assets = await assetServce.AssetGetAllAsync();
             }
 
-            var balanceReaders = BalanceReaderFactory.GetBalanceReaders(assets, settings.CurrentValue);
+            var balanceReaders = (BalanceReaderFactory.GetBalanceReaders(assets, settings.CurrentValue)).ToArray();
             
             const string csvDeliminator = ";";
 
@@ -146,9 +146,10 @@ namespace Lykke.Tools.UserWalletBalanceReport
                     clientIds = await File.ReadAllLinesAsync(settings.CurrentValue.ClientIdsFilePath);
                 }
 
-                // If AssetId is omitted, IncludeZeroBalances should be false.
-                var includeZeroBalances = settings.CurrentValue.IncludeZeroBalances
-                                          && !string.IsNullOrEmpty(settings.CurrentValue.AssetId); 
+                if (string.IsNullOrEmpty(settings.CurrentValue.AssetId) && settings.CurrentValue.IncludeZeroBalances)
+                {
+                    throw new ArgumentException("If AssetId is omitted, IncludeZeroBalances should be false.");
+                }
 
                 foreach (var clientId in clientIds)
                 {
@@ -190,9 +191,9 @@ namespace Lykke.Tools.UserWalletBalanceReport
                                     () => balanceReader.ReadBalance(relatedAssets, address));
 
                                 foreach (var blockchainBalance in blockchainBalances
-                                    .Where(p => p.amount != 0 || includeZeroBalances))
+                                    .Where(p => p.amount != 0 || settings.CurrentValue.IncludeZeroBalances))
                                 {
-                                    File.AppendAllText(settings.CurrentValue.ResultFilePath,
+                                    await File.AppendAllTextAsync(settings.CurrentValue.ResultFilePath,
                                         string.Join(csvDeliminator,
                                             clientId,
                                             blockchainBalance.address,
@@ -205,7 +206,7 @@ namespace Lykke.Tools.UserWalletBalanceReport
                             {
                                 Console.WriteLine($"Exception during processing balance for client {clientId}: {e.ToAsyncString()}");
 
-                                File.AppendAllText(settings.CurrentValue.ErrorFilePath,
+                                await File.AppendAllTextAsync(settings.CurrentValue.ErrorFilePath,
                                     string.Join(csvDeliminator,
                                         DateTime.UtcNow,
                                         clientId,
@@ -261,7 +262,7 @@ namespace Lykke.Tools.UserWalletBalanceReport
         private static async Task<IEnumerable<(IBalanceReader balanceReader, string address)>> GetDepositWallets(string clientId,
             ILogFactory logFactory,
             IReloadingManager<ToolSettings> settings,
-            IEnumerable<IBalanceReader> balanceReaders)
+            ICollection<IBalanceReader> balanceReaders)
         {
             if (string.IsNullOrEmpty(settings.CurrentValue.Db.ClientPersonalInfoConnString))
             {
