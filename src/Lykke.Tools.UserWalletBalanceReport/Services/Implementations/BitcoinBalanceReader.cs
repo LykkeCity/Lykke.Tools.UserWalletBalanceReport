@@ -120,9 +120,10 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations
             return source.Select(GetAddress).Distinct().Select(p => p.ToString());
         }
 
-        public IEnumerable<Asset> SelectRelatedAssets(IEnumerable<Asset> source)
+        public  Task<IEnumerable<Asset>> SelectRelatedAssetsAsync(IEnumerable<Asset> source)
         {
-            return source.Where(p => IsColoredAssetId(p.BlockChainAssetId) || p.Id == "BTC").ToList();
+            return Task.FromResult((IEnumerable<Asset>)
+                source.Where(p => IsColoredAssetId(p.BlockChainAssetId) || p.Id == "BTC").ToList());
         }
 
         private bool IsBtcAddress(string address)

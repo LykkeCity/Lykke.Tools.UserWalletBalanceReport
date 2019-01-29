@@ -14,6 +14,6 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services
         IEnumerable<string> GetAddresses(IBcnCredentialsRecord wallet);
         IEnumerable<string> GetAddresses(BlockchainWalletResponse wallet);
         IEnumerable<string> SelectUniqueAddresses(IEnumerable<string> source);
-        IEnumerable<Asset> SelectRelatedAssets(IEnumerable<Asset> source);
+        Task<IEnumerable<Asset>> SelectRelatedAssetsAsync(IEnumerable<Asset> source);
     }
 }

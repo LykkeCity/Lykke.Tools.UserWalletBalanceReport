@@ -3,6 +3,9 @@
 		"NinjaUrl":"", //
 		"Network":"regtest" //main or  regtest or test 
 	},
+	"Ethereum":{
+		"EthereumCoreUrl":"", //
+	},
 	"AssetServiceUrl":"", // lykke asset service url
 	"ClientAccountUrl":"", //lykke client accout service url
 	"AssetId":"", // colored coin should be specified as  parameter in format of Lykke internal asset ID. If this parameter is omitted, then all non zero balances of all assets pressented on an address should be reported

@@ -12,9 +12,11 @@
     <PackageReference Include="Lykke.Service.Assets.Client" Version="5.1.0" />
     <PackageReference Include="Lykke.Service.BlockchainWallets.Client" Version="5.6.6" />
     <PackageReference Include="Lykke.Service.ClientAccount.Client" Version="3.0.7" />
+    <PackageReference Include="Lykke.Service.EthereumCore.Client" Version="1.1.12" />
     <PackageReference Include="Lykke.SettingsReader" Version="4.2.0" />
     <PackageReference Include="Microsoft.Extensions.CommandLineUtils" Version="1.1.1" />
     <PackageReference Include="NBitcoin" Version="4.1.1.72" />
+    <PackageReference Include="Nethereum.Util" Version="3.0.0" />
     <PackageReference Include="Polly" Version="6.1.2" />
     <PackageReference Include="QBitNinja.Client" Version="1.0.3.47" />
   </ItemGroup>
