@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Lykke.Service.Assets.Client.Models;
@@ -44,11 +45,8 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations
             _client = client;
         }
 
-        public async Task<(string address, decimal amount)> ReadBalance(Asset asset, string address)
+        public async Task<IEnumerable<(string address, decimal amount, string assetId)>> ReadBalance(IEnumerable<Asset> assets, string address)
         {
-
-            var btcAssetId = new BitcoinAssetId(asset.BlockChainAssetId, _client.Network);
-
             var btcAddress = GetAddress(address);
 
             BalanceSummary sum;
@@ -62,14 +60,30 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations
                 throw new RetryNeededException(e);
             }
 
-            var amount = sum.Spendable.Assets.SingleOrDefault(p => p.Asset == btcAssetId)?.Quantity ?? 0;
+            var result = new List<(string address, decimal amount, string assetId)>();
 
-            return (address, amount * (decimal)asset.Multiplier());
+            foreach (var asset in assets.Where(p => !string.IsNullOrEmpty(p.BlockChainAssetId)))
+            {
+                var btcAssetId = new BitcoinAssetId(asset.BlockChainAssetId, _client.Network);
+                var amount = sum.Spendable.Assets.SingleOrDefault(p => p.Asset == btcAssetId)?.Quantity ?? 0;
+
+                result.Add((address, amount * (decimal)asset.Multiplier(), asset.Id));
+            }
+
+            if (assets.Any(p => p.Id == "BTC"))
+            {
+                result.Add((address, (decimal)sum.Spendable.Amount.ToUnit(MoneyUnit.BTC), "BTC"));
+            }
+
+            return result;
         }
 
         public IEnumerable<string> GetAddresses(IPrivateWallet wallet)
         {
-            yield return wallet.WalletAddress;
+            if (IsBtcAddress(wallet.WalletAddress))
+            {
+                yield return wallet.WalletAddress;
+            }
         }
 
         public IEnumerable<string> GetAddresses(IWalletCredentials wallet)
@@ -93,9 +107,12 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations
             }
         }
 
-        public IEnumerable<string> GetAddresses(AddressResponse wallet)
+        public IEnumerable<string> GetAddresses(BlockchainWalletResponse wallet)
         {
-            yield return wallet.Address;
+            if (IsBtcAddress(wallet.Address))
+            {
+                yield return wallet.Address;
+            }
         }
 
         public IEnumerable<string> SelectUniqueAddresses(IEnumerable<string> source)
@@ -103,11 +120,29 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations
             return source.Select(GetAddress).Distinct().Select(p => p.ToString());
         }
 
+        public IEnumerable<Asset> SelectRelatedAssets(IEnumerable<Asset> source)
+        {
+            return source.Where(p => IsColoredAssetId(p.BlockChainAssetId) || p.Id == "BTC").ToList();
+        }
+
         private bool IsBtcAddress(string address)
         {
             return IsUncoloredBtcAddress(address) || IsColoredBtcAddress(address);
         }
 
+        private bool IsColoredAssetId(string assetId)
+        {
+            try
+            {
+                new BitcoinAssetId(assetId, _client.Network);
+
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
         private BitcoinAddress GetAddress(string address)
         {
 

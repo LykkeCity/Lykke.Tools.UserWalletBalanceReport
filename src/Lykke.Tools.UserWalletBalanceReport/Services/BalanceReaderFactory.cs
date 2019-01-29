@@ -1,4 +1,4 @@
-﻿using System;
+﻿using System.Collections.Generic;
 using Lykke.Service.Assets.Client.Models;
 using Lykke.Tools.UserWalletBalanceReport.Services.Implementations;
 using Lykke.Tools.UserWalletBalanceReport.Settings;
@@ -7,18 +7,11 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services
 {
     public static class BalanceReaderFactory
     {
-        public static IBalanceReader GetBalanceReader(Asset asset, ToolSettings toolSettings)
+        public static IEnumerable<IBalanceReader> GetBalanceReaders(IEnumerable<Asset> assets, ToolSettings toolSettings)
         {
-            switch (asset.Blockchain)
+            if (toolSettings.Bitcoin != null)
             {
-                case Blockchain.Bitcoin:
-                {
-                    return BitcoinBalanceReader.Create(toolSettings);
-                }
-                default:
-                {
-                    throw new ArgumentException($"Balance reader for blockchain {asset.Blockchain} not implemented");
-                }
+                yield return BitcoinBalanceReader.Create(toolSettings);
             }
         }
     }

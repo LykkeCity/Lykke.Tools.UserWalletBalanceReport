@@ -17,6 +17,6 @@ namespace Lykke.Tools.UserWalletBalanceReport.Repositories
 
     public interface IBcnClientCredentialsRepository
     {
-        Task<IBcnCredentialsRecord> GetAsync(string clientId, string assetId);
+        Task<IEnumerable<IBcnCredentialsRecord>> GetAsync(string clientId);
     }
 }
