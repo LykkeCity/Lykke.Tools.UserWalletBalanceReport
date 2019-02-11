@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Lykke.Service.Assets.Client.Models;
@@ -13,7 +12,7 @@ using NBitcoin.OpenAsset;
 using QBitNinja.Client;
 using QBitNinja.Client.Models;
 
-namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations
+namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations.Bitcoin
 {
     public class BitcoinBalanceReader: IBalanceReader
     {

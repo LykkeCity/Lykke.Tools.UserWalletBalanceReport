@@ -24,6 +24,7 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations.Ethereum
         private readonly EthereumCoreAPI _client;
         private readonly IAssetsService _assetsService;
         private readonly AddressUtil _addressUtil;
+        private readonly Lazy<Task<IEnumerable<Asset>>> _lazyErc20AssetsCache;
 
         public static IBalanceReader Create(ToolSettings toolSettings, IAssetsService assetsService)
         {
@@ -39,6 +40,12 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations.Ethereum
 
         private EthereumBalanceReader(EthereumCoreAPI client, IAssetsService assetsService)
         {
+            _lazyErc20AssetsCache = new Lazy<Task<IEnumerable<Asset>>>(async () =>
+            {
+                var result = await GetApprovedTokenAssets(null);
+
+                return result;
+            });
             _assetsService = assetsService ?? throw new ArgumentNullException(nameof(assetsService));
             _addressUtil = new AddressUtil();
             _client = client;
@@ -166,12 +173,19 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations.Ethereum
 
         public async Task<IEnumerable<Asset>> SelectRelatedAssetsAsync(IEnumerable<Asset> source)
         {
+            return await _lazyErc20AssetsCache.Value;
+        }
+
+        private async Task<IEnumerable<Asset>> GetApprovedTokenAssets(IEnumerable<Asset> source)
+        {
+            source = source != null ? source : await _assetsService.AssetGetAllAsync();
             var dict = source.ToDictionary(x => x.Id);
             var ethAsset = GetEthAsset(source);
-            var tokens = await _assetsService.Erc20TokenGetBySpecificationAsync(new Lykke.Service.Assets.Client.Models.Erc20TokenSpecification()
-            {
-                Ids = source?.Where(x => x.Blockchain == Blockchain.Ethereum).Select(x => x.Id).ToList()
-            });
+            var tokens = await _assetsService.Erc20TokenGetBySpecificationAsync(
+                new Lykke.Service.Assets.Client.Models.Erc20TokenSpecification()
+                {
+                    Ids = source?.Where(x => x.Blockchain == Blockchain.Ethereum).Select(x => x.Id).ToList()
+                });
 
             var approvedTokens = tokens.Items.Select(x =>
             {

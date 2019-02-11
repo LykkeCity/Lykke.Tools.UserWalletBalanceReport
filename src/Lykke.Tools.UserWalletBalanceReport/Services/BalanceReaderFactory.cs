@@ -2,6 +2,7 @@
 using Lykke.Tools.UserWalletBalanceReport.Services.Implementations;
 using Lykke.Tools.UserWalletBalanceReport.Settings;
 using System.Collections.Generic;
+using Lykke.Tools.UserWalletBalanceReport.Services.Implementations.Bitcoin;
 using Lykke.Tools.UserWalletBalanceReport.Services.Implementations.Ethereum;
 
 namespace Lykke.Tools.UserWalletBalanceReport.Services
