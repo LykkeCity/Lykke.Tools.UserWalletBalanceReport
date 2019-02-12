@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Lykke.Service.Assets.Client.Models;
@@ -13,7 +12,7 @@ using NBitcoin.OpenAsset;
 using QBitNinja.Client;
 using QBitNinja.Client.Models;
 
-namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations
+namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations.Bitcoin
 {
     public class BitcoinBalanceReader: IBalanceReader
     {
@@ -120,9 +119,10 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations
             return source.Select(GetAddress).Distinct().Select(p => p.ToString());
         }
 
-        public IEnumerable<Asset> SelectRelatedAssets(IEnumerable<Asset> source)
+        public  Task<IEnumerable<Asset>> SelectRelatedAssetsAsync(IEnumerable<Asset> source)
         {
-            return source.Where(p => IsColoredAssetId(p.BlockChainAssetId) || p.Id == "BTC").ToList();
+            return Task.FromResult((IEnumerable<Asset>)
+                source.Where(p => IsColoredAssetId(p.BlockChainAssetId) || p.Id == "BTC").ToList());
         }
 
         private bool IsBtcAddress(string address)

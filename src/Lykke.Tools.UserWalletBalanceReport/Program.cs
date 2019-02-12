@@ -120,7 +120,7 @@ namespace Lykke.Tools.UserWalletBalanceReport
                 assets = await assetServce.AssetGetAllAsync();
             }
 
-            var balanceReaders = (BalanceReaderFactory.GetBalanceReaders(assets, settings.CurrentValue)).ToArray();
+            var balanceReaders = (BalanceReaderFactory.GetBalanceReaders(assetServce, settings.CurrentValue)).ToArray();
             
             const string csvDeliminator = ";";
 
@@ -181,7 +181,7 @@ namespace Lykke.Tools.UserWalletBalanceReport
 
                         //cache enumeration
                         var relatedAssets = relatedAssetsDictionary.GetOrAdd(balanceReader.GetType(),
-                            (type) => balanceReader.SelectRelatedAssets(assets).ToList());
+                            (type) => balanceReader.SelectRelatedAssetsAsync(assets).Result.ToList());
 
                         foreach (var address in balanceReader.SelectUniqueAddresses(balanceReaderAddresses.Select(p=>p.address)))
                         {
