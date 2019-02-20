@@ -197,7 +197,7 @@ namespace Lykke.Tools.UserWalletBalanceReport
                                         string.Join(csvDeliminator,
                                             clientId,
                                             blockchainBalance.address,
-                                            blockchainBalance.amount.ToString("F", CultureInfo.InvariantCulture),
+                                            blockchainBalance.amount.ToString(CultureInfo.InvariantCulture),
                                             blockchainBalance.assetId)
                                         + Environment.NewLine);
                                 }
