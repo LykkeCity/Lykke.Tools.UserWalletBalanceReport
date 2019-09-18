@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using AsyncFriendlyStackTrace;
 using AzureStorage.Tables;
+using Common.Log;
 using Lykke.Common.Log;
 using Lykke.Logs;
 using Lykke.Logs.Loggers.LykkeConsole;
@@ -80,6 +81,7 @@ namespace Lykke.Tools.UserWalletBalanceReport
 
             var logFactory = LogFactory.Create()
                 .AddConsole();
+            var log = logFactory.CreateLog("Program");
 
             var assetServce = new AssetsService(new Uri(settings.CurrentValue.AssetServiceUrl));
 
@@ -146,7 +148,9 @@ namespace Lykke.Tools.UserWalletBalanceReport
 
                             break;
                         case ToolSettings.WalletTypes.Deposit:
-                            addresses = await GetDepositWallets(clientId, 
+                            addresses = await GetDepositWallets(
+                                log,
+                                clientId, 
                                 asset, logFactory, 
                                 settings,
                                 balanceReader);
@@ -220,7 +224,8 @@ namespace Lykke.Tools.UserWalletBalanceReport
                 .SelectMany(balanceReader.GetAddresses);
         }
 
-        private static async Task<IEnumerable<string>> GetDepositWallets(string clientId, 
+        private static async Task<IEnumerable<string>> GetDepositWallets(ILog log,
+            string clientId, 
             Asset asset, 
             ILogFactory logFactory,
             IReloadingManager<ToolSettings> settings,
@@ -236,48 +241,66 @@ namespace Lykke.Tools.UserWalletBalanceReport
                 throw new ArgumentNullException(nameof(ToolSettings.Db.ClientPersonalInfoConnString));
             }
 
-            var bcnCredentialsRepo = new BcnClientCredentialsRepository(
-                AzureTableStorage<BcnCredentialsRecordEntity>.Create(
-                    settings.ConnectionString(x => x.Db.ClientPersonalInfoConnString),
-                    "BcnClientCredentials", logFactory));
+            //var bcnCredentialsRepo = new BcnClientCredentialsRepository(
+            //    AzureTableStorage<BcnCredentialsRecordEntity>.Create(
+            //        settings.ConnectionString(x => x.Db.ClientPersonalInfoConnString),
+            //        "BcnClientCredentials", logFactory));
 
-            var walletCredentialsRepo = new WalletCredentialsRepository(
-                AzureTableStorage<WalletCredentialsEntity>.Create(
-                    settings.ConnectionString(x => x.Db.ClientPersonalInfoConnString),
-                    "WalletCredentials", logFactory));
+            //var walletCredentialsRepo = new WalletCredentialsRepository(
+            //    AzureTableStorage<WalletCredentialsEntity>.Create(
+            //        settings.ConnectionString(x => x.Db.ClientPersonalInfoConnString),
+            //        "WalletCredentials", logFactory));
 
             var blockchainWalletsClient =
                 new BlockchainWalletsClient(settings.CurrentValue.BlockchainWalletsUrl, logFactory);
 
             var result = new List<string>();
 
-            var bcnCredWallet = await bcnCredentialsRepo.GetAsync(clientId, asset.Id);
+            //var bcnCredWallet = await bcnCredentialsRepo.GetAsync(clientId, asset.Id);
 
-            if (bcnCredWallet != null)
-            {
-                result.AddRange(balanceReader.GetAddresses(bcnCredWallet));
-            }
+            //if (bcnCredWallet != null)
+            //{
+            //    result.AddRange(balanceReader.GetAddresses(bcnCredWallet));
+            //}
 
-            var walletCredentialsWallet = await walletCredentialsRepo.GetAsync(clientId);
+            //var walletCredentialsWallet = await walletCredentialsRepo.GetAsync(clientId);
 
-            if (walletCredentialsWallet != null)
-            {
-                result.AddRange(balanceReader.GetAddresses(walletCredentialsWallet));
-            }
+            //if (walletCredentialsWallet != null)
+            //{
+            //    result.AddRange(balanceReader.GetAddresses(walletCredentialsWallet));
+            //}
+
+            var clientIdGuid = Guid.Parse(clientId);
 
             try
             {
                 var bwWallet = await blockchainWalletsClient.GetAddressAsync(asset.BlockchainIntegrationLayerId,
-                    asset.BlockchainIntegrationLayerAssetId, Guid.Parse(clientId));
+                    asset.BlockchainIntegrationLayerAssetId, clientIdGuid);
 
                 if (bwWallet != null)
                 {
                     result.AddRange(balanceReader.GetAddresses(bwWallet));
                 }
+                else
+                {
+                    log.Warning("Deposit wallet not found", context: new
+                    {
+                        clientId,
+                        clientIdGuid,
+                        assetId = asset.BlockchainIntegrationLayerAssetId,
+                        blockchainType = asset.BlockchainIntegrationLayerId
+                    });
+                }
             }
             catch (ResultValidationException e)
             {
-                
+                log.Warning("Error while getting the deposit wallet", exception: e, context: new
+                {
+                    clientId,
+                    clientIdGuid,
+                    assetId = asset.BlockchainIntegrationLayerAssetId,
+                    blockchainType = asset.BlockchainIntegrationLayerId
+                });
             }
 
 
