@@ -43,12 +43,14 @@ namespace Lykke.Tools.UserWalletBalanceReport.Settings
         public class DbSettings
         {
             public string ClientPersonalInfoConnString { get; set; }
+            public string BlockchainWalletsConnString { get; set; }
         }
 
         public enum WalletTypes
         {
             Private,
-            Deposit
+            Deposit,
+            BilDeposit
         }
     }
 }

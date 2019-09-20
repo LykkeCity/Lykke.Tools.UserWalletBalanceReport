@@ -83,22 +83,9 @@ namespace Lykke.Tools.UserWalletBalanceReport
                 .AddConsole();
             var log = logFactory.CreateLog("Program");
 
-            var assetServce = new AssetsService(new Uri(settings.CurrentValue.AssetServiceUrl));
-
+            var assetService = new AssetsService(new Uri(settings.CurrentValue.AssetServiceUrl));
             
-            var retryPolicy = Policy.Handle<RetryNeededException>()
-                .WaitAndRetryAsync(10, retryAttempt => TimeSpan.FromSeconds(retryAttempt), onRetry:
-                    (ex, delay, context, tsk) =>
-                    {
-                        Console.WriteLine($"Retrying exception {ex.ToAsyncString()}");
-                    });
-
-            var clientAccountService = new Lazy<ClientAccountClient>(()=> 
-                new ClientAccountClient(settings.CurrentValue.ClientAccountUrl 
-                                        ?? throw new ArgumentNullException(settings.CurrentValue.ClientAccountUrl)));
-
-
-            var asset = await assetServce.AssetGetAsync(settings.CurrentValue.AssetId);
+            var asset = await assetService.AssetGetAsync(settings.CurrentValue.AssetId);
 
             if (asset == null)
             {
@@ -107,21 +94,60 @@ namespace Lykke.Tools.UserWalletBalanceReport
                 return;
             }
 
+            if (settings.CurrentValue.WalletType == ToolSettings.WalletTypes.BilDeposit)
+            {
+                await GetBilDepositWalletBalances(log, logFactory, settings, asset);
+            }
+            else
+            {
+                await GetBalancesByClients(settings, asset, logFactory, log);
+            }
+
+            Console.WriteLine("All done");
+        }
+
+        private static async Task GetBilDepositWalletBalances(ILog log, ILogFactory logFactory, FileSettingsReader<ToolSettings> settings, 
+            Asset asset)
+        {
+            var balanceReader = BalanceReaderFactory.GetBalanceReader(asset, settings.CurrentValue);
+            var repository = BlockchainWalletsRepository.Create(settings.Nested(x => x.Db).ConnectionString(x => x.BlockchainWalletsConnString), logFactory);
+
+            string continuation = null;
+            var counter = 0;
+
+            do
+            {
+                var (wallets, continuationToken) = await repository.GetAllAsync(asset.BlockchainIntegrationLayerId, 1000, continuation);
+
+                continuation = continuationToken;
+
+                counter += await RenderBalances(log, settings, asset, balanceReader, wallets.Select(x => new UserWallet
+                {
+                    UserId = x.ClientId.ToString(),
+                    Address = x.Address
+                }));
+
+                Console.WriteLine($"done -- {counter}");
+            } while (continuation != null);
+        }
+
+        private static async Task GetBalancesByClients(FileSettingsReader<ToolSettings> settings, Asset asset, ILogFactory logFactory,
+            ILog log)
+        {
+            var clientAccountService = new Lazy<ClientAccountClient>(() =>
+                new ClientAccountClient(settings.CurrentValue.ClientAccountUrl
+                                        ?? throw new ArgumentNullException(settings.CurrentValue.ClientAccountUrl)));
 
             var balanceReader = BalanceReaderFactory.GetBalanceReader(asset, settings.CurrentValue);
             string continuationToken = null;
-            
-            const string csvDeliminator = ";";
 
             var counter = 0;
             do
             {
-
                 IEnumerable<string> clientIds;
 
                 if (string.IsNullOrEmpty(settings.CurrentValue.ClientIdsFilePath))
                 {
-               
                     Console.WriteLine("Retrieving client ids batch");
                     var response = await clientAccountService.Value.GetIdsAsync(continuationToken);
 
@@ -141,7 +167,7 @@ namespace Lykke.Tools.UserWalletBalanceReport
                     switch (settings.CurrentValue.WalletType)
                     {
                         case ToolSettings.WalletTypes.Private:
-                            addresses = await GetPrivateWalletAddresses(clientId, 
+                            addresses = await GetPrivateWalletAddresses(clientId,
                                 logFactory,
                                 settings,
                                 balanceReader);
@@ -150,59 +176,82 @@ namespace Lykke.Tools.UserWalletBalanceReport
                         case ToolSettings.WalletTypes.Deposit:
                             addresses = await GetDepositWallets(
                                 log,
-                                clientId, 
-                                asset, logFactory, 
+                                clientId,
+                                asset,
+                                logFactory,
                                 settings,
                                 balanceReader);
-
                             break;
+
                         default:
                             throw new ArgumentException("Unknown switch", nameof(ToolSettings.WalletType));
                     }
 
-                    foreach (var address in balanceReader.SelectUniqueAddresses(addresses))
+                    await RenderBalances(log, settings, asset, balanceReader, addresses.Select(address => new UserWallet
                     {
-                        try
-                        {
-                            var blockchainBalance = await retryPolicy.ExecuteAsync(
-                                () => balanceReader.ReadBalance(asset, address));
-                            
-                            if (blockchainBalance.amount != 0 || settings.CurrentValue.IncludeZeroBalances)
-                            {
-                                File.AppendAllText(settings.CurrentValue.ResultFilePath,
-                                    string.Join(csvDeliminator,
-                                        clientId,
-                                        blockchainBalance.address,
-                                        blockchainBalance.amount.ToString("F", CultureInfo.InvariantCulture))
-                                    + Environment.NewLine);
-                            }
-                        }
-                        catch (Exception e)
-                        {
-                            Console.WriteLine($"Exception during processing balance for client {clientId}: {e.ToAsyncString()}" );
-            
-                            File.AppendAllText(settings.CurrentValue.ErrorFilePath,
-                                string.Join(csvDeliminator,
-                                    DateTime.UtcNow,
-                                    clientId,
-                                    address,
-                                    e.ToAsyncString())
-                                + Environment.NewLine);
-                        }
-                    }
+                        UserId = clientId,
+                        Address = address
+                    }));
 
                     counter++;
                     Console.WriteLine($"{clientId} done -- {counter}");
                 }
             } while (continuationToken != null);
-
-            Console.WriteLine("All done");
         }
 
-        private static async Task<IEnumerable<string>> GetPrivateWalletAddresses(string clientId, 
-            ILogFactory logFactory,
-            IReloadingManager<ToolSettings> settings,
-            IBalanceReader balanceReader)
+        private static async Task<int> RenderBalances(ILog log, FileSettingsReader<ToolSettings> settings, Asset asset,
+            IBalanceReader balanceReader, IEnumerable<UserWallet> wallets)
+        {
+            const string csvDeliminator = ";";
+
+            var retryPolicy = Policy.Handle<RetryNeededException>()
+                .WaitAndRetryAsync(10, retryAttempt => TimeSpan.FromSeconds(retryAttempt), onRetry:
+                    (ex, delay, context, tsk) =>
+                    {
+                        Console.WriteLine($"Retrying exception {ex.ToAsyncString()}");
+                    });
+
+            int counter = 0;
+
+            foreach (var wallet in wallets)
+            {
+                try
+                {
+                    var balance = await retryPolicy.ExecuteAsync(() => balanceReader.ReadBalance(asset, wallet.Address));
+
+                    if (balance != 0 || settings.CurrentValue.IncludeZeroBalances)
+                    {
+                        File.AppendAllText(settings.CurrentValue.ResultFilePath,
+                            string.Join(csvDeliminator,
+                                wallet.UserId,
+                                wallet.Address,
+                                balance.ToString("F", CultureInfo.InvariantCulture))
+                            + Environment.NewLine);
+                    }
+                }
+                catch (Exception e)
+                {
+                    log.Warning("Failed to render balance", exception: e, context: wallet);
+
+                    File.AppendAllText(settings.CurrentValue.ErrorFilePath,
+                        string.Join(csvDeliminator,
+                            DateTime.UtcNow,
+                            wallet.UserId,
+                            wallet.Address,
+                            e.ToAsyncString())
+                        + Environment.NewLine);
+                }
+
+                ++counter;
+            }
+
+            return counter;
+        }
+
+        private static async Task<IEnumerable<string>> GetPrivateWalletAddresses(string clientId,
+             ILogFactory logFactory,
+             IReloadingManager<ToolSettings> settings,
+             IBalanceReader balanceReader)
         {
             if (string.IsNullOrEmpty(settings.CurrentValue.Db.ClientPersonalInfoConnString))
             {
@@ -219,14 +268,14 @@ namespace Lykke.Tools.UserWalletBalanceReport
                     settings.ConnectionString(x => x.Db.ClientPersonalInfoConnString),
                     "WalletCredentials", logFactory));
 
-            return  (await privateWalletsRepo.GetAllPrivateWallets(clientId,
+            return (await privateWalletsRepo.GetAllPrivateWallets(clientId,
                 await walletCredentialsRepo.GetAsync(clientId)))
                 .SelectMany(balanceReader.GetAddresses);
         }
 
         private static async Task<IEnumerable<string>> GetDepositWallets(ILog log,
-            string clientId, 
-            Asset asset, 
+            string clientId,
+            Asset asset,
             ILogFactory logFactory,
             IReloadingManager<ToolSettings> settings,
             IBalanceReader balanceReader)
@@ -241,34 +290,34 @@ namespace Lykke.Tools.UserWalletBalanceReport
                 throw new ArgumentNullException(nameof(ToolSettings.Db.ClientPersonalInfoConnString));
             }
 
-            //var bcnCredentialsRepo = new BcnClientCredentialsRepository(
-            //    AzureTableStorage<BcnCredentialsRecordEntity>.Create(
-            //        settings.ConnectionString(x => x.Db.ClientPersonalInfoConnString),
-            //        "BcnClientCredentials", logFactory));
+            var bcnCredentialsRepo = new BcnClientCredentialsRepository(
+                AzureTableStorage<BcnCredentialsRecordEntity>.Create(
+                    settings.ConnectionString(x => x.Db.ClientPersonalInfoConnString),
+                    "BcnClientCredentials", logFactory));
 
-            //var walletCredentialsRepo = new WalletCredentialsRepository(
-            //    AzureTableStorage<WalletCredentialsEntity>.Create(
-            //        settings.ConnectionString(x => x.Db.ClientPersonalInfoConnString),
-            //        "WalletCredentials", logFactory));
+            var walletCredentialsRepo = new WalletCredentialsRepository(
+                AzureTableStorage<WalletCredentialsEntity>.Create(
+                    settings.ConnectionString(x => x.Db.ClientPersonalInfoConnString),
+                    "WalletCredentials", logFactory));
 
             var blockchainWalletsClient =
                 new BlockchainWalletsClient(settings.CurrentValue.BlockchainWalletsUrl, logFactory);
 
             var result = new List<string>();
 
-            //var bcnCredWallet = await bcnCredentialsRepo.GetAsync(clientId, asset.Id);
+            var bcnCredWallet = await bcnCredentialsRepo.GetAsync(clientId, asset.Id);
 
-            //if (bcnCredWallet != null)
-            //{
-            //    result.AddRange(balanceReader.GetAddresses(bcnCredWallet));
-            //}
+            if (bcnCredWallet != null)
+            {
+                result.AddRange(balanceReader.GetAddresses(bcnCredWallet));
+            }
 
-            //var walletCredentialsWallet = await walletCredentialsRepo.GetAsync(clientId);
+            var walletCredentialsWallet = await walletCredentialsRepo.GetAsync(clientId);
 
-            //if (walletCredentialsWallet != null)
-            //{
-            //    result.AddRange(balanceReader.GetAddresses(walletCredentialsWallet));
-            //}
+            if (walletCredentialsWallet != null)
+            {
+                result.AddRange(balanceReader.GetAddresses(walletCredentialsWallet));
+            }
 
             var clientIdGuid = Guid.Parse(clientId);
 

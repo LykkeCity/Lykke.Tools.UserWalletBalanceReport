@@ -44,12 +44,12 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations
             _client = client;
         }
 
-        public async Task<(string address, decimal amount)> ReadBalance(Asset asset, string address)
+        public async Task<decimal> ReadBalance(Asset asset, string address)
         {
 
             var btcAssetId = new BitcoinAssetId(asset.BlockChainAssetId, _client.Network);
 
-            var btcAddress = GetAddress(address);
+            var btcAddress = NormalizeAddress(address);
 
             BalanceSummary sum;
 
@@ -64,7 +64,7 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations
 
             var amount = sum.Spendable.Assets.SingleOrDefault(p => p.Asset == btcAssetId)?.Quantity ?? 0;
 
-            return (address, amount * (decimal)asset.Multiplier());
+            return amount * (decimal)asset.Multiplier();
         }
 
         public IEnumerable<string> GetAddresses(IPrivateWallet wallet)
@@ -98,27 +98,22 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations
             yield return wallet.Address;
         }
 
-        public IEnumerable<string> SelectUniqueAddresses(IEnumerable<string> source)
-        {
-            return source.Select(GetAddress).Distinct().Select(p => p.ToString());
-        }
-
         private bool IsBtcAddress(string address)
         {
             return IsUncoloredBtcAddress(address) || IsColoredBtcAddress(address);
         }
 
-        private BitcoinAddress GetAddress(string address)
+        private string NormalizeAddress(string address)
         {
 
             if (IsUncoloredBtcAddress(address))
             {
-                return BitcoinAddress.Create(address, _client.Network);
+                return BitcoinAddress.Create(address, _client.Network).ToString();
             }
 
             if (IsColoredBtcAddress(address))
             {
-                return new BitcoinColoredAddress(address, _client.Network).Address;
+                return new BitcoinColoredAddress(address, _client.Network).Address.ToString();
             }
 
             throw new ArgumentException($"Invalid address format {address}", nameof(address));
