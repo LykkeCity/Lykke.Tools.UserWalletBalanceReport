@@ -19,6 +19,7 @@ using Lykke.Tools.UserWalletBalanceReport.Repositories;
 using Lykke.Tools.UserWalletBalanceReport.Services;
 using Lykke.Tools.UserWalletBalanceReport.Settings;
 using Microsoft.Extensions.CommandLineUtils;
+using NBitcoin;
 using Polly;
 
 namespace Lykke.Tools.UserWalletBalanceReport
@@ -221,10 +222,13 @@ namespace Lykke.Tools.UserWalletBalanceReport
 
                     if (balance != 0 || settings.CurrentValue.IncludeZeroBalances)
                     {
+                        var colored = BitcoinAddress.Create(wallet.Address, Network.Main).ToColoredAddress();
+
                         File.AppendAllText(settings.CurrentValue.ResultFilePath,
                             string.Join(csvDeliminator,
                                 wallet.UserId,
                                 wallet.Address,
+                                colored,
                                 balance.ToString("F", CultureInfo.InvariantCulture))
                             + Environment.NewLine);
                     }
