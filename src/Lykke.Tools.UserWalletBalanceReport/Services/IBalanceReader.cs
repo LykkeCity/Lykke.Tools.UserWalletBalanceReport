@@ -8,11 +8,12 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services
 {
     public interface IBalanceReader
     {
-        Task<(string address, decimal amount)> ReadBalance(Asset asset, string address);
+        Task<IEnumerable<(string address, decimal amount, string assetId)>> ReadBalance(IEnumerable<Asset> assets, string address);
         IEnumerable<string> GetAddresses(IPrivateWallet wallet);
         IEnumerable<string> GetAddresses(IWalletCredentials wallet);
         IEnumerable<string> GetAddresses(IBcnCredentialsRecord wallet);
-        IEnumerable<string> GetAddresses(AddressResponse wallet);
+        IEnumerable<string> GetAddresses(BlockchainWalletResponse wallet);
         IEnumerable<string> SelectUniqueAddresses(IEnumerable<string> source);
+        Task<IEnumerable<Asset>> SelectRelatedAssetsAsync(IEnumerable<Asset> source);
     }
 }

@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+﻿using System.Collections.Generic;
+using System.Threading.Tasks;
 using AzureStorage;
 using Microsoft.WindowsAzure.Storage.Table;
 
@@ -49,10 +50,9 @@ namespace Lykke.Tools.UserWalletBalanceReport.Repositories
         {
             _tableStorage = tableStorage;
         }
-        public async Task<IBcnCredentialsRecord> GetAsync(string clientId, string assetId)
+        public async Task<IEnumerable<IBcnCredentialsRecord>> GetAsync(string clientId)
         {
-            return await _tableStorage.GetDataAsync(BcnCredentialsRecordEntity.ByClientId.GeneratePartition(clientId),
-                BcnCredentialsRecordEntity.ByClientId.GenerateRowKey(assetId));
+            return await _tableStorage.GetDataAsync(BcnCredentialsRecordEntity.ByClientId.GeneratePartition(clientId));
         }
     }
 }

@@ -7,6 +7,9 @@ namespace Lykke.Tools.UserWalletBalanceReport.Settings
         [Optional]
         public BitcoinSettings Bitcoin { get; set; }
 
+        [Optional]
+        public EthereumSettings Ethereum { get; set; }
+
         public WalletTypes WalletType { get; set; }
 
         public string AssetServiceUrl { get; set; }
@@ -17,6 +20,7 @@ namespace Lykke.Tools.UserWalletBalanceReport.Settings
         [Optional]
         public string BlockchainWalletsUrl { get; set; }
 
+        [Optional]
         public string AssetId { get; set; }
         
         public DbSettings Db { get; set; }
@@ -38,6 +42,12 @@ namespace Lykke.Tools.UserWalletBalanceReport.Settings
 
             [Optional]
             public string NinjaUrl { get; set; }
+        }
+
+        public class EthereumSettings
+        {
+            [Optional]
+            public string EthereumCoreUrl { get; set; }
         }
 
         public class DbSettings
