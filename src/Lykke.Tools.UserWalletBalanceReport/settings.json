@@ -14,7 +14,7 @@
 	},
 	"ResultFilePath":"", // exported balances in csv format
 	"ErrorFilePath":"", // file with errors during export
-	"ClientIdsFilePath:"",	//a file with list of users ID, for which balances should be checked. Each user ID should be placed at new line. If this parameter is omitted, then balances of all private wallets should be reported.	ClientIdsFilePath or ClientAccountUrl should  be specified
+	"ClientIdsFilePath":"",	//a file with list of users ID, for which balances should be checked. Each user ID should be placed at new line. If this parameter is omitted, then balances of all private wallets should be reported.	ClientIdsFilePath or ClientAccountUrl should  be specified
 	"IncludeZeroBalances":true, // include zero balances in report. optional - default value is false,
 	"WalletType":"Private", //Private|Deposit
 	"BlockchainWalletsUrl":""
