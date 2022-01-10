@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using System.Numerics;
 using Lykke.Service.Assets.Client;
 using Lykke.Service.Assets.Client.Models;
 using Lykke.Service.BlockchainWallets.Contract.Models;
@@ -174,6 +175,80 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations.Ethereum
         public async Task<IEnumerable<Asset>> SelectRelatedAssetsAsync(IEnumerable<Asset> source)
         {
             return await _lazyErc20AssetsCache.Value;
+        }
+
+        public async Task<BlockchainTransactionsInfo> GetTransactionsInfoAsync(string address, DateTime? fromDate = null, int? fromBlock = null)
+        {
+            var ethAsset = (await _assetsService.AssetGetAllAsync()).FirstOrDefault(x => x.BlockChainAssetId == "ETH");
+
+            if (ethAsset == null)
+                return new BlockchainTransactionsInfo();
+
+            var result = new BlockchainTransactionsInfo
+            {
+                AssetId = ethAsset.Id
+            };
+
+            if (!fromDate.HasValue)
+                return result;
+
+            var hasTransactions = true;
+            int count = 100;
+            int start = 0;
+
+            while (hasTransactions)
+            {
+                var addressHistoryResponse = await _client.ApiTransactionsHistoryPostAsync(new AddressTransactions
+                {
+                    Address = address,
+                    Count = count,
+                    Start = start
+                });
+
+                if (addressHistoryResponse is ApiException error)
+                {
+                    continue;
+                }
+
+                if (addressHistoryResponse is FilteredAddressHistoryResponse historyResponse)
+                {
+                    var transactions = historyResponse.History.Where(x => x.BlockTimeUtc >= fromDate.Value).ToList();
+                    hasTransactions = transactions.Any();
+
+                    foreach (var historyItem in transactions)
+                    {
+                        var fees = BigInteger.Parse(historyItem.GasPrice ?? "0") * BigInteger.Parse(historyItem.GasUsed ?? "0");
+                        var sign = EthServiceHelpers.CalculateSign(address, historyItem.FromProperty, historyItem.To);
+
+                        var value = sign == 1
+                            ? historyItem.Value
+                            : (BigInteger.Parse(historyItem.Value) + fees).ToString();
+
+                        decimal ethValue = sign * EthServiceHelpers
+                            .ConvertFromContract(
+                                value,
+                                ethAsset.MultiplierPower,
+                                ethAsset.Accuracy);
+
+                        result.TransactionsCount++;
+
+                        if (sign == 1)
+                        {
+                            result.ReceivedAmount += ethValue;
+                        }
+
+                        if (sign == -1)
+                        {
+                            result.SpentAmount += ethValue;
+                        }
+                    }
+
+                    start += count;
+                    count += count;
+                }
+            }
+
+            return result;
         }
 
         private async Task<IEnumerable<Asset>> GetApprovedTokenAssets(IEnumerable<Asset> source)

@@ -1,4 +1,5 @@
-﻿using Lykke.SettingsReader.Attributes;
+﻿using System;
+using Lykke.SettingsReader.Attributes;
 
 namespace Lykke.Tools.UserWalletBalanceReport.Settings
 {
@@ -22,7 +23,7 @@ namespace Lykke.Tools.UserWalletBalanceReport.Settings
 
         [Optional]
         public string AssetId { get; set; }
-        
+
         public DbSettings Db { get; set; }
 
         public string ResultFilePath { get; set; }
@@ -34,31 +35,14 @@ namespace Lykke.Tools.UserWalletBalanceReport.Settings
 
         [Optional]
         public string ClientIdsFilePath { get; set; }
-        
-        public class BitcoinSettings
-        {
-            [Optional]
-            public string Network { get; set; }
 
-            [Optional]
-            public string NinjaUrl { get; set; }
-        }
+        [Optional]
+        public PrivateWalletsCountSettings PrivateWalletsCount { get; set; }
+    }
 
-        public class EthereumSettings
-        {
-            [Optional]
-            public string EthereumCoreUrl { get; set; }
-        }
-
-        public class DbSettings
-        {
-            public string ClientPersonalInfoConnString { get; set; }
-        }
-
-        public enum WalletTypes
-        {
-            Private,
-            Deposit
-        }
+    public class PrivateWalletsCountSettings
+    {
+        public DateTime? FromDate { get; set; }
+        public int FromBlock { get; set; }
     }
 }
