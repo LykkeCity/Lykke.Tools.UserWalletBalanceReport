@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Lykke.Service.Assets.Client.Models;
 using Lykke.Service.BlockchainWallets.Contract.Models;
@@ -15,5 +16,6 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services
         IEnumerable<string> GetAddresses(BlockchainWalletResponse wallet);
         IEnumerable<string> SelectUniqueAddresses(IEnumerable<string> source);
         Task<IEnumerable<Asset>> SelectRelatedAssetsAsync(IEnumerable<Asset> source);
+        Task<BlockchainTransactionsInfo> GetTransactionsInfoAsync(string address, DateTime? fromDate = null, int? fromBlock = null);
     }
 }

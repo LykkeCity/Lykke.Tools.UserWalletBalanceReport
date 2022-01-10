@@ -30,5 +30,20 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations.Ethereum
 
             return res;
         }
+
+        public static int CalculateSign(string address, string from, string to)
+        {
+            int sign = 1;//incoming transaction;
+            if (from?.ToLower() == address.ToLower())
+            {
+                sign = -1;
+            }
+            else if (from?.ToLower() == to?.ToLower())
+            {
+                sign = 0;
+            }
+
+            return sign;
+        }
     }
 }

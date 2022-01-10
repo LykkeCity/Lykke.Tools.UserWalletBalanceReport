@@ -85,7 +85,6 @@ namespace Lykke.Tools.UserWalletBalanceReport
 
             var assetServce = new AssetsService(new Uri(settings.CurrentValue.AssetServiceUrl));
 
-            
             var retryPolicy = Policy.Handle<RetryNeededException>()
                 .WaitAndRetryAsync(10, retryAttempt => TimeSpan.FromSeconds(retryAttempt), onRetry:
                     (ex, delay, context, tsk) =>
@@ -93,14 +92,14 @@ namespace Lykke.Tools.UserWalletBalanceReport
                         Console.WriteLine($"Retrying exception {ex.ToAsyncString()}");
                     });
 
-            var clientAccountService = new Lazy<ClientAccountClient>(()=> 
-                new ClientAccountClient(settings.CurrentValue.ClientAccountUrl 
+            var clientAccountService = new Lazy<ClientAccountClient>(()=>
+                new ClientAccountClient(settings.CurrentValue.ClientAccountUrl
                                         ?? throw new ArgumentNullException(settings.CurrentValue.ClientAccountUrl)));
 
             IEnumerable<Asset> assets;
+
             if (!string.IsNullOrEmpty(settings.CurrentValue.AssetId))
             {
-
                 var asset = await assetServce.AssetGetAsync(settings.CurrentValue.AssetId);
 
                 if (asset == null)
@@ -120,10 +119,11 @@ namespace Lykke.Tools.UserWalletBalanceReport
                 assets = await assetServce.AssetGetAllAsync();
             }
 
-            var balanceReaders = (BalanceReaderFactory.GetBalanceReaders(assetServce, settings.CurrentValue)).ToArray();
-            
-            const string csvDeliminator = ";";
+            var balanceReaders = BalanceReaderFactory.GetBalanceReaders(assetServce, settings.CurrentValue).ToArray();
 
+            const string csvDeliminator = ";";
+            string header = $"ClientId;Address;Amount;AssetId;ReceivedAmount;SpentAmount;TransactionsCount{Environment.NewLine}";
+            await File.AppendAllTextAsync(settings.CurrentValue.ResultFilePath, header);
             var counter = 0;
             string continuationToken = null;
             var relatedAssetsDictionary = new ConcurrentDictionary<Type, IEnumerable<Asset>>();
@@ -134,7 +134,6 @@ namespace Lykke.Tools.UserWalletBalanceReport
 
                 if (string.IsNullOrEmpty(settings.CurrentValue.ClientIdsFilePath))
                 {
-               
                     Console.WriteLine("Retrieving client ids batch");
                     var response = await clientAccountService.Value.GetIdsAsync(continuationToken);
 
@@ -157,14 +156,14 @@ namespace Lykke.Tools.UserWalletBalanceReport
 
                     switch (settings.CurrentValue.WalletType)
                     {
-                        case ToolSettings.WalletTypes.Private:
+                        case WalletTypes.Private:
                             addresses = await GetPrivateWalletAddresses(clientId,
                                 logFactory,
                                 settings,
                                 balanceReaders);
 
                             break;
-                        case ToolSettings.WalletTypes.Deposit:
+                        case WalletTypes.Deposit:
                             addresses = await GetDepositWallets(clientId,
                                 logFactory,
                                 settings,
@@ -190,15 +189,24 @@ namespace Lykke.Tools.UserWalletBalanceReport
                                 var blockchainBalances = await retryPolicy.ExecuteAsync(
                                     () => balanceReader.ReadBalance(relatedAssets, address));
 
+                                var transactionsInfo = await retryPolicy.ExecuteAsync(
+                                    () => balanceReader.GetTransactionsInfoAsync(address, settings.CurrentValue.PrivateWalletsCount.FromDate,
+                                        settings.CurrentValue.PrivateWalletsCount.FromBlock));
+
                                 foreach (var blockchainBalance in blockchainBalances
                                     .Where(p => p.amount != 0 || settings.CurrentValue.IncludeZeroBalances))
                                 {
+
                                     await File.AppendAllTextAsync(settings.CurrentValue.ResultFilePath,
                                         string.Join(csvDeliminator,
                                             clientId,
                                             blockchainBalance.address,
                                             blockchainBalance.amount.ToString(CultureInfo.InvariantCulture),
-                                            blockchainBalance.assetId)
+                                            blockchainBalance.assetId,
+                                            transactionsInfo.AssetId == blockchainBalance.assetId ? transactionsInfo.ReceivedAmount.ToString(CultureInfo.InvariantCulture) : "-",
+                                            transactionsInfo.AssetId == blockchainBalance.assetId ? transactionsInfo.SpentAmount.ToString(CultureInfo.InvariantCulture) : "-",
+                                            transactionsInfo.AssetId == blockchainBalance.assetId ? transactionsInfo.TransactionsCount.ToString(CultureInfo.InvariantCulture) : "-"
+                                            )
                                         + Environment.NewLine);
                                 }
                             }
@@ -217,7 +225,6 @@ namespace Lykke.Tools.UserWalletBalanceReport
                         }
                     }
 
-
                     counter++;
                     Console.WriteLine($"[{DateTime.UtcNow}] {clientId} done -- {counter}");
                 }
@@ -226,7 +233,7 @@ namespace Lykke.Tools.UserWalletBalanceReport
             Console.WriteLine("All done");
         }
 
-        private static async Task<IEnumerable<(IBalanceReader balanceReader, string address)>> GetPrivateWalletAddresses(string clientId, 
+        private static async Task<IEnumerable<(IBalanceReader balanceReader, string address)>> GetPrivateWalletAddresses(string clientId,
             ILogFactory logFactory,
             IReloadingManager<ToolSettings> settings,
             IEnumerable<IBalanceReader> balanceReaders)
@@ -250,6 +257,7 @@ namespace Lykke.Tools.UserWalletBalanceReport
                 await walletCredentialsRepo.GetAsync(clientId))).ToList();
 
             var result = new List<(IBalanceReader balanceReader, string address)>();
+
             foreach (var balanceReader in balanceReaders)
             {
                 var addr = wallets.SelectMany(balanceReader.GetAddresses);
@@ -308,13 +316,12 @@ namespace Lykke.Tools.UserWalletBalanceReport
                 }
             }
 
-
             try
             {
                 string continuationToken = null;
                 do
                 {
-                    var resp = await 
+                    var resp = await
                         blockchainWalletsClient.TryGetClientWalletsAsync(Guid.Parse(clientId), 10, continuationToken);
 
                     foreach (var balanceReader in balanceReaders)
@@ -329,9 +336,7 @@ namespace Lykke.Tools.UserWalletBalanceReport
             }
             catch (ResultValidationException)
             {
-                
             }
-
 
             return result;
         }

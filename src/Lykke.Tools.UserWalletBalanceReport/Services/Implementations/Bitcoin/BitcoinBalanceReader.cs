@@ -17,7 +17,7 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations.Bitcoin
     public class BitcoinBalanceReader: IBalanceReader
     {
         private readonly QBitNinjaClient _client;
-        
+
         public static IBalanceReader Create(ToolSettings toolSettings)
         {
             if (toolSettings.Bitcoin?.Network == null)
@@ -123,6 +123,37 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations.Bitcoin
         {
             return Task.FromResult((IEnumerable<Asset>)
                 source.Where(p => IsColoredAssetId(p.BlockChainAssetId) || p.Id == "BTC").ToList());
+        }
+
+        public async Task<BlockchainTransactionsInfo> GetTransactionsInfoAsync(string address, DateTime? fromDate = null, int? fromBlock = null)
+        {
+            var result = new BlockchainTransactionsInfo
+            {
+                AssetId = "BTC"
+            };
+
+            if (!fromBlock.HasValue)
+                return result;
+
+            var btcAddress = GetAddress(address);
+
+            try
+            {
+                var balance = await _client.GetBalanceBetween(new BalanceSelector(btcAddress), new BlockFeature(fromBlock.Value));
+
+                foreach (var operation in balance.Operations)
+                {
+                    result.ReceivedAmount += operation.ReceivedCoins.Sum(x => ((Money)x.Amount).ToDecimal(MoneyUnit.BTC));
+                    result.SpentAmount += operation.SpentCoins.Sum(x => ((Money)x.Amount).ToDecimal(MoneyUnit.BTC));
+                    result.TransactionsCount += operation.ReceivedCoins.Count + operation.SpentCoins.Count;
+                }
+
+                return result;
+            }
+            catch (Exception e)
+            {
+                throw new RetryNeededException(e);
+            }
         }
 
         private bool IsBtcAddress(string address)
