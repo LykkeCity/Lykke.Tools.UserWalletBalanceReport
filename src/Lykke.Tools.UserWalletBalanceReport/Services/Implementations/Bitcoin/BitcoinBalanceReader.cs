@@ -52,6 +52,7 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations.Bitcoin
 
             try
             {
+                _client.Colored = IsColoredBtcAddress(address);
                 sum = await _client.GetBalanceSummary(btcAddress);
             }
             catch (Exception e)
@@ -139,14 +140,16 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations.Bitcoin
 
             try
             {
-                var balance = await _client.GetBalanceBetween(new BalanceSelector(btcAddress), new BlockFeature(fromBlock.Value));
+                _client.Colored = IsColoredBtcAddress(address);
+                var balance = await _client.GetBalanceBetween(new BalanceSelector(btcAddress), until: new BlockFeature(fromBlock.Value));
 
                 foreach (var operation in balance.Operations)
                 {
-                    result.ReceivedAmount += operation.ReceivedCoins.Sum(x => ((Money)x.Amount).ToDecimal(MoneyUnit.BTC));
-                    result.SpentAmount += operation.SpentCoins.Sum(x => ((Money)x.Amount).ToDecimal(MoneyUnit.BTC));
-                    result.TransactionsCount += operation.ReceivedCoins.Count + operation.SpentCoins.Count;
+                    result.ReceivedAmount += operation.ReceivedCoins.Sum(x => ((Money)x.Amount).ToUnit(MoneyUnit.BTC));
+                    result.SpentAmount += operation.SpentCoins.Sum(x => ((Money)x.Amount).ToUnit(MoneyUnit.BTC));
                 }
+
+                result.TransactionsCount = balance.Operations.Count;
 
                 return result;
             }
