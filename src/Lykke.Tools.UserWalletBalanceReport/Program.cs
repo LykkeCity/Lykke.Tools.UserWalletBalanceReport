@@ -212,7 +212,7 @@ namespace Lykke.Tools.UserWalletBalanceReport
                             }
                             catch (Exception e)
                             {
-                                Console.WriteLine($"Exception during processing balance for client {clientId}: {e.ToAsyncString()}");
+                                Console.WriteLine($"Exception during processing balance for client {clientId}, address: {address}: {e.ToAsyncString()}");
 
                                 await File.AppendAllTextAsync(settings.CurrentValue.ErrorFilePath,
                                     string.Join(csvDeliminator,
