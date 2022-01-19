@@ -65,7 +65,7 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations.Bitcoin
             foreach (var asset in assets.Where(p => !string.IsNullOrEmpty(p.BlockChainAssetId)))
             {
                 var btcAssetId = new BitcoinAssetId(asset.BlockChainAssetId, _client.Network);
-                var amount = sum.Spendable.Assets.SingleOrDefault(p => p.Asset == btcAssetId)?.Quantity ?? 0;
+                var amount = sum.Spendable.Assets?.SingleOrDefault(p => p.Asset == btcAssetId)?.Quantity ?? 0;
 
                 result.Add((address, amount * (decimal)asset.Multiplier(), asset.Id));
             }
