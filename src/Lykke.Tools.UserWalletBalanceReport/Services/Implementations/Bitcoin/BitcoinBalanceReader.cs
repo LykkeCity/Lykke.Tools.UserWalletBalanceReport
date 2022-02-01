@@ -46,13 +46,13 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations.Bitcoin
 
         public async Task<IEnumerable<(string address, decimal amount, string assetId)>> ReadBalance(IEnumerable<Asset> assets, string address)
         {
-            var btcAddress = GetAddress(address);
+            var (btcAddress, isColored) = GetAddress(address);
 
             BalanceSummary sum;
 
             try
             {
-                _client.Colored = IsColoredBtcAddress(address);
+                _client.Colored = isColored;
                 sum = await _client.GetBalanceSummary(btcAddress);
             }
             catch (Exception e)
@@ -117,7 +117,7 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations.Bitcoin
 
         public IEnumerable<string> SelectUniqueAddresses(IEnumerable<string> source)
         {
-            return source.Select(GetAddress).Distinct().Select(p => p.ToString());
+            return source.Distinct().Select(p => p.ToString());
         }
 
         public  Task<IEnumerable<Asset>> SelectRelatedAssetsAsync(IEnumerable<Asset> source)
@@ -126,27 +126,31 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations.Bitcoin
                 source.Where(p => IsColoredAssetId(p.BlockChainAssetId) || p.Id == "BTC").ToList());
         }
 
-        public async Task<BlockchainTransactionsInfo> GetTransactionsInfoAsync(string address, DateTime? fromDate = null, int? fromBlock = null)
+        public async Task<BlockchainTransactionsInfo> GetTransactionsInfoAsync(IEnumerable<Asset> assets, string address, string assetId = null, DateTime? fromDate = null, int? fromBlock = null)
         {
+            assetId = string.IsNullOrEmpty(assetId) ? "BTC" : assetId;
+            
             var result = new BlockchainTransactionsInfo
             {
-                AssetId = "BTC"
+                AssetId = assetId
             };
 
             if (!fromBlock.HasValue)
                 return result;
 
-            var btcAddress = GetAddress(address);
+            var (btcAddress, isColored) = GetAddress(address);
+
+            var asset = assets.First(x => x.Id == assetId);
 
             try
             {
-                _client.Colored = IsColoredBtcAddress(address);
+                _client.Colored = isColored;
                 var balance = await _client.GetBalanceBetween(new BalanceSelector(btcAddress), until: new BlockFeature(fromBlock.Value));
 
                 foreach (var operation in balance.Operations)
                 {
-                    result.ReceivedAmount += operation.ReceivedCoins.Sum(x => ((Money)x.Amount).ToUnit(MoneyUnit.BTC));
-                    result.SpentAmount += operation.SpentCoins.Sum(x => ((Money)x.Amount).ToUnit(MoneyUnit.BTC));
+                    result.ReceivedAmount += operation.ReceivedCoins.Sum(x => x.Amount.GetAmount(asset.MultiplierPower));
+                    result.SpentAmount += operation.SpentCoins.Sum(x => x.Amount.GetAmount(asset.MultiplierPower));
                 }
 
                 result.TransactionsCount = balance.Operations.Count;
@@ -177,17 +181,17 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations.Bitcoin
                 return false;
             }
         }
-        private BitcoinAddress GetAddress(string address)
+        
+        private (BitcoinAddress, bool) GetAddress(string address)
         {
-
             if (IsUncoloredBtcAddress(address))
             {
-                return BitcoinAddress.Create(address, _client.Network);
+                return (BitcoinAddress.Create(address, _client.Network), false);
             }
 
             if (IsColoredBtcAddress(address))
             {
-                return new BitcoinColoredAddress(address, _client.Network).Address;
+                return (new BitcoinColoredAddress(address, _client.Network).Address, true);
             }
 
             throw new ArgumentException($"Invalid address format {address}", nameof(address));

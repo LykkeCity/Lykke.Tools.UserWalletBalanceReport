@@ -177,7 +177,7 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services.Implementations.Ethereum
             return await _lazyErc20AssetsCache.Value;
         }
 
-        public async Task<BlockchainTransactionsInfo> GetTransactionsInfoAsync(string address, DateTime? fromDate = null, int? fromBlock = null)
+        public async Task<BlockchainTransactionsInfo> GetTransactionsInfoAsync(IEnumerable<Asset> assets, string address, string assetId = null, DateTime? fromDate = null, int? fromBlock = null)
         {
             var ethAsset = (await _assetsService.AssetGetAllAsync()).FirstOrDefault(x => x.BlockChainAssetId == "ETH");
 

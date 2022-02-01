@@ -16,6 +16,6 @@ namespace Lykke.Tools.UserWalletBalanceReport.Services
         IEnumerable<string> GetAddresses(BlockchainWalletResponse wallet);
         IEnumerable<string> SelectUniqueAddresses(IEnumerable<string> source);
         Task<IEnumerable<Asset>> SelectRelatedAssetsAsync(IEnumerable<Asset> source);
-        Task<BlockchainTransactionsInfo> GetTransactionsInfoAsync(string address, DateTime? fromDate = null, int? fromBlock = null);
+        Task<BlockchainTransactionsInfo> GetTransactionsInfoAsync(IEnumerable<Asset> assets, string address, string assetId = null, DateTime? fromDate = null, int? fromBlock = null);
     }
 }
