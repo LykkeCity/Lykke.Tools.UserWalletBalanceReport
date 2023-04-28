@@ -191,7 +191,7 @@ namespace Lykke.Tools.UserWalletBalanceReport
 
                                 var transactionsInfo = await retryPolicy.ExecuteAsync(
                                     () => balanceReader.GetTransactionsInfoAsync(relatedAssets, address, settings.CurrentValue.AssetId, settings.CurrentValue.PrivateWalletsCount.FromDate,
-                                        settings.CurrentValue.PrivateWalletsCount.FromBlock));
+                                        settings.CurrentValue.PrivateWalletsCount?.FromBlock));
 
                                 foreach (var blockchainBalance in blockchainBalances
                                     .Where(p => p.amount != 0 || settings.CurrentValue.IncludeZeroBalances))
